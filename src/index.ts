@@ -2,6 +2,7 @@
 
 import { Command } from 'commander'
 import { loginCommand } from './commands/login.js'
+import { logoutCommand } from './commands/logout.js'
 import { whoamiCommand } from './commands/whoami.js'
 
 declare const CLI_VERSION: string
@@ -17,6 +18,11 @@ program
   .command('login')
   .description('Authenticate with Cirrux via browser')
   .action(loginCommand)
+
+program
+  .command('logout')
+  .description('Log out of the current workspace')
+  .action(logoutCommand)
 
 program
   .command('whoami')
