@@ -1,14 +1,14 @@
 {
   "name": "@cirrux/cli",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "bin": {
     "cirrux": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --target node20 --clean",
-    "dev": "tsup src/index.ts --format esm --target node20 --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

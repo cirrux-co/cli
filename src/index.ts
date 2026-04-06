@@ -1,23 +1,18 @@
 #!/usr/bin/env node
 
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
 import { Command } from 'commander'
 import { loginCommand } from './commands/login.js'
 import { logoutCommand } from './commands/logout.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { checkForUpdate } from './update-check.js'
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'))
+import { CLI_VERSION } from './version.js'
 
 const program = new Command()
 
 program
   .name('cirrux')
   .description('Cirrux CLI')
-  .version(pkg.version)
+  .version(CLI_VERSION)
 
 program
   .command('login')
@@ -36,4 +31,4 @@ program
 
 program.parse()
 
-await checkForUpdate(pkg.version)
+await checkForUpdate(CLI_VERSION)
