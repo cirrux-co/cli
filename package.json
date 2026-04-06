@@ -1,0 +1,23 @@
+{
+  "name": "@cirrux/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "cirrux": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --target node20 --clean --define.CLI_VERSION=\"\\\"0.1.0\\\"\"",
+    "dev": "tsup src/index.ts --format esm --target node20 --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

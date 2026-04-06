@@ -1,0 +1,155 @@
+name: Release CLI
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: bun-darwin-arm64
+            asset: cirrux-darwin-arm64
+          - os: macos-13
+            target: bun-darwin-x64
+            asset: cirrux-darwin-x64
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            asset: cirrux-linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: pnpm install
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build JS bundle
+        run: pnpm build -- --define.CLI_VERSION="\"${{ steps.version.outputs.version }}\""
+
+      - name: Compile standalone binary
+        run: bun build dist/index.js --compile --target=${{ matrix.target }} --outfile cirrux
+
+      - name: Smoke test
+        if: matrix.target == 'bun-darwin-arm64' || matrix.target == 'bun-linux-x64'
+        run: ./cirrux --version
+
+      - name: Create tarball
+        run: tar -czf ${{ matrix.asset }}.tar.gz cirrux
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha_darwin_arm64: ${{ steps.sha.outputs.sha_darwin_arm64 }}
+      sha_darwin_x64: ${{ steps.sha.outputs.sha_darwin_x64 }}
+      sha_linux_x64: ${{ steps.sha.outputs.sha_linux_x64 }}
+    steps:
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Compute SHA256
+        id: sha
+        run: |
+          echo "sha_darwin_arm64=$(shasum -a 256 artifacts/cirrux-darwin-arm64/cirrux-darwin-arm64.tar.gz | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sha_darwin_x64=$(shasum -a 256 artifacts/cirrux-darwin-x64/cirrux-darwin-x64.tar.gz | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sha_linux_x64=$(shasum -a 256 artifacts/cirrux-linux-x64/cirrux-linux-x64.tar.gz | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: v${{ steps.version.outputs.version }}
+          files: |
+            artifacts/cirrux-darwin-arm64/cirrux-darwin-arm64.tar.gz
+            artifacts/cirrux-darwin-x64/cirrux-darwin-x64.tar.gz
+            artifacts/cirrux-linux-x64/cirrux-linux-x64.tar.gz
+
+  update-tap:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: cirrux-co/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Update formula
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          SHA_DARWIN_ARM64: ${{ needs.release.outputs.sha_darwin_arm64 }}
+          SHA_DARWIN_X64: ${{ needs.release.outputs.sha_darwin_x64 }}
+          SHA_LINUX_X64: ${{ needs.release.outputs.sha_linux_x64 }}
+        run: |
+          cat > Formula/cirrux.rb << FORMULA
+          class Cirrux < Formula
+            desc "CLI for Cirrux email"
+            homepage "https://cirrux.co"
+            version "${VERSION}"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/cirrux-co/cli/releases/download/v${VERSION}/cirrux-darwin-arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              end
+              on_intel do
+                url "https://github.com/cirrux-co/cli/releases/download/v${VERSION}/cirrux-darwin-x64.tar.gz"
+                sha256 "${SHA_DARWIN_X64}"
+              end
+            end
+
+            on_linux do
+              on_intel do
+                url "https://github.com/cirrux-co/cli/releases/download/v${VERSION}/cirrux-linux-x64.tar.gz"
+                sha256 "${SHA_LINUX_X64}"
+              end
+            end
+
+            def install
+              bin.install "cirrux"
+            end
+
+            test do
+              assert_match "cirrux", shell_output("#{bin}/cirrux --help")
+            end
+          end
+          FORMULA
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/cirrux.rb
+          git commit -m "Update cirrux to ${{ needs.release.outputs.version }}"
+          git push
