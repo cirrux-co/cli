@@ -1,13 +1,13 @@
 {
   "name": "@cirrux/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "bin": {
     "cirrux": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --target node20 --clean --define.CLI_VERSION=\"\\\"0.2.0\\\"\"",
+    "build": "tsup src/index.ts --format esm --target node20 --clean --define.CLI_VERSION=\"\\\"0.3.0\\\"\"",
     "dev": "tsup src/index.ts --format esm --target node20 --watch",
     "typecheck": "tsc --noEmit"
   },
