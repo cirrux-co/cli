@@ -44,7 +44,7 @@ jobs:
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build JS bundle
-        run: pnpm build -- --define.CLI_VERSION="\"${{ steps.version.outputs.version }}\""
+        run: pnpm build
 
       - name: Compile standalone binary
         run: bun build dist/index.js --compile --target=${{ matrix.target }} --outfile cirrux
