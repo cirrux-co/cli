@@ -1,11 +1,17 @@
 import { apiRequest } from '../api.js'
 import { getActiveCredentials } from '../config.js'
+import { ExitCode } from '../exit-codes.js'
+import { output, outputError, type OutputOptions } from '../output.js'
 
-export async function whoamiCommand(): Promise<void> {
+export async function whoamiCommand(options: OutputOptions): Promise<void> {
   const creds = getActiveCredentials()
   if (!creds) {
-    console.error('Not logged in. Run `cirrux login` first.')
-    process.exit(1)
+    outputError('Not logged in.', {
+      ...options,
+      code: ExitCode.AUTH_REQUIRED,
+      hint: "Run 'cirrux login' first.",
+      errorType: 'auth_required',
+    })
   }
 
   try {
@@ -16,14 +22,33 @@ export async function whoamiCommand(): Promise<void> {
       token: creds.access_token,
     })
 
+    const data: Record<string, unknown> = {}
+    const lines: string[] = []
+
     if (profile.user) {
-      console.log(`User: ${profile.user.first_name} ${profile.user.last_name} (${profile.user.username})`)
+      data.user_uuid = profile.user.uuid
+      data.username = profile.user.username
+      data.first_name = profile.user.first_name
+      data.last_name = profile.user.last_name
+      lines.push(`User: ${profile.user.first_name} ${profile.user.last_name} (${profile.user.username})`)
     }
+
     if (profile.workspace) {
-      console.log(`Workspace: ${profile.workspace.name} (${profile.workspace.uuid})`)
+      data.workspace_uuid = profile.workspace.uuid
+      data.workspace_name = profile.workspace.name
+      lines.push(`Workspace: ${profile.workspace.name} (${profile.workspace.uuid})`)
     }
+
+    output(data, {
+      ...options,
+      text: lines.join('\n'),
+      quietValue: profile.user?.username,
+    })
   } catch (error) {
-    console.error('Failed to fetch profile:', error instanceof Error ? error.message : error)
-    process.exit(1)
+    outputError(`Failed to fetch profile: ${error instanceof Error ? error.message : error}`, {
+      ...options,
+      code: ExitCode.GENERAL_FAILURE,
+      errorType: 'api_error',
+    })
   }
 }
