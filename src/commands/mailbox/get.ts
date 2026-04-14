@@ -5,7 +5,7 @@ import { output, outputError, type OutputOptions } from '../../output.js'
 
 interface Mailbox {
   object: string
-  id: string
+  uuid: string
   address: string
   created_at: string
   updated_at: string
@@ -28,7 +28,7 @@ export async function mailboxGetCommand(id: string, options: OutputOptions): Pro
     })
 
     const lines = [
-      `ID:         ${mailbox.id}`,
+      `UUID:       ${mailbox.uuid}`,
       `Address:    ${mailbox.address}`,
       `Created at: ${mailbox.created_at}`,
       `Updated at: ${mailbox.updated_at}`,
@@ -37,7 +37,7 @@ export async function mailboxGetCommand(id: string, options: OutputOptions): Pro
     output(mailbox as unknown as Record<string, unknown>, {
       ...options,
       text: lines.join('\n'),
-      quietValue: mailbox.id,
+      quietValue: mailbox.uuid,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

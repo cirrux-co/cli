@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import open from 'open'
 import { apiRequest, apiUrl } from './api.js'
 import { saveWorkspaceCredentials } from './config.js'
+import { CLI_VERSION } from './version.js'
 
 function generateCodeVerifier(): string {
   return randomBytes(64).toString('base64url')
@@ -80,6 +81,9 @@ export async function login(): Promise<void> {
     body: {
       code,
       code_verifier: codeVerifier,
+      metadata: {
+        app_version: CLI_VERSION,
+      },
     },
   })
 

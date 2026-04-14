@@ -5,6 +5,7 @@ import { loginCommand } from './commands/login.js'
 import { logoutCommand } from './commands/logout.js'
 import { mailboxListCommand } from './commands/mailbox/list.js'
 import { mailboxGetCommand } from './commands/mailbox/get.js'
+import { threadListCommand } from './commands/thread/list.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { checkForUpdate } from './update-check.js'
 import { CLI_VERSION } from './version.js'
@@ -51,6 +52,21 @@ mailbox
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the mailbox ID (for piping)')
   .action(mailboxGetCommand)
+
+const thread = program
+  .command('thread')
+  .description('Manage email threads')
+
+thread
+  .command('list')
+  .description('List threads for a mailbox')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .option('--limit <n>', 'Number of threads to return (1-100)')
+  .option('--cursor <cursor>', 'Pagination cursor from a previous response')
+  .option('--label <label>', 'Filter by label (e.g. inbox, sent, archive)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only thread UUIDs, one per line (for piping)')
+  .action(threadListCommand)
 
 program.parse()
 

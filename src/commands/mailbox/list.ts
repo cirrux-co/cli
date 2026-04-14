@@ -5,7 +5,7 @@ import { output, outputError, type OutputOptions } from '../../output.js'
 
 interface Mailbox {
   object: string
-  id: string
+  uuid: string
   address: string
   created_at: string
   updated_at: string
@@ -39,8 +39,8 @@ export async function mailboxListCommand(options: OutputOptions): Promise<void> 
       data: response.data,
     }
 
-    const lines = response.data.map((m) => `${m.id}\t${m.address}`)
-    const quietValue = response.data.map((m) => m.id).join('\n')
+    const lines = response.data.map((m) => `${m.uuid}\t${m.address}`)
+    const quietValue = response.data.map((m) => m.uuid).join('\n')
 
     output(data, {
       ...options,
