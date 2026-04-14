@@ -1,6 +1,6 @@
 {
   "name": "@cirrux/cli",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "type": "module",
   "bin": {
@@ -9,13 +9,15 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "commander": "^13.1.0",
     "open": "^10.1.0"
   },
   "devDependencies": {
+    "@types/bun": "^1.1.0",
     "@types/node": "^22.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"

@@ -36,6 +36,8 @@ jobs:
           node-version: 20
 
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
 
       - run: pnpm install
 
@@ -43,18 +45,43 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
+      - name: Run unit tests
+        run: bun test
+
       - name: Build JS bundle
         run: pnpm build
 
       - name: Compile standalone binary
         run: bun build dist/index.js --compile --target=${{ matrix.target }} --outfile cirrux
 
-      - name: Smoke test
-        if: matrix.target == 'bun-darwin-arm64' || matrix.target == 'bun-linux-x64'
-        run: ./cirrux --version
+      # Bun's --compile output on macOS is "linker-signed" but has produced
+      # signature blobs that macOS rejects with "invalid or unsupported format
+      # for signature" once the binary leaves the build sandbox (e.g. after
+      # being tar'd, uploaded, downloaded, and extracted by Homebrew). Strip
+      # whatever bun produced and apply a clean ad-hoc signature. This is
+      # required for the binary to launch on Apple Silicon at all — without it
+      # the kernel kills it with SIGKILL on exec (exit 137).
+      - name: Ad-hoc re-sign (macOS)
+        if: startsWith(matrix.target, 'bun-darwin')
+        run: |
+          codesign --remove-signature cirrux || true
+          codesign --force --sign - cirrux
+          codesign --verify --verbose cirrux
 
       - name: Create tarball
         run: tar -czf ${{ matrix.asset }}.tar.gz cirrux
+
+      # Smoke-test the binary as it will actually be shipped: extracted from
+      # the tarball into a fresh location, not the freshly-compiled one in the
+      # build directory. This is what catches signature corruption that only
+      # surfaces after the file has moved.
+      - name: Smoke test (post-tar)
+        if: matrix.target == 'bun-darwin-arm64' || matrix.target == 'bun-linux-x64'
+        run: |
+          mkdir -p smoke && tar -xzf ${{ matrix.asset }}.tar.gz -C smoke
+          ./smoke/cirrux --version
+          ./smoke/cirrux help
+          ./smoke/cirrux thread list --help
 
       - uses: actions/upload-artifact@v4
         with:

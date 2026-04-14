@@ -44,16 +44,16 @@ interface ThreadListResponse {
   data: Thread[]
 }
 
-function formatAddress(addr: { name: string | null; address: string }): string {
+export function formatAddress(addr: { name: string | null; address: string }): string {
   return addr.name ? `${addr.name} <${addr.address}>` : addr.address
 }
 
-function formatDate(iso: string): string {
+export function formatDate(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function formatThread(thread: Thread): string {
+export function formatThread(thread: Thread): string {
   const lines: string[] = []
   const lastEmail = thread.emails[thread.emails.length - 1]
   const from = lastEmail ? formatAddress(lastEmail.from[0]) : 'Unknown'
