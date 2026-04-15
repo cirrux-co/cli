@@ -6,6 +6,10 @@ import { logoutCommand } from './commands/logout.js'
 import { mailboxListCommand } from './commands/mailbox/list.js'
 import { mailboxGetCommand } from './commands/mailbox/get.js'
 import { threadListCommand } from './commands/thread/list.js'
+import { emailGetCommand } from './commands/email/get.js'
+import { emailContentCommand } from './commands/email/content.js'
+import { attachmentGetCommand } from './commands/attachment/get.js'
+import { attachmentDownloadCommand } from './commands/attachment/download.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { checkForUpdate } from './update-check.js'
 import { CLI_VERSION } from './version.js'
@@ -67,6 +71,47 @@ thread
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only thread UUIDs, one per line (for piping)')
   .action(threadListCommand)
+
+const email = program
+  .command('email')
+  .description('Manage emails')
+
+email
+  .command('get')
+  .description('Get email metadata')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailGetCommand)
+
+email
+  .command('content')
+  .description('Get email content (raw MIME or HTML body)')
+  .argument('<uuid>', 'Email UUID')
+  .argument('<format>', 'Content format: "raw" or "body"')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the content (for piping)')
+  .action(emailContentCommand)
+
+const attachment = program
+  .command('attachment')
+  .description('Manage email attachments')
+
+attachment
+  .command('get')
+  .description('Get attachment metadata')
+  .argument('<uuid>', 'Attachment UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the attachment UUID (for piping)')
+  .action(attachmentGetCommand)
+
+attachment
+  .command('download')
+  .description('Download attachment content')
+  .argument('<uuid>', 'Attachment UUID')
+  .option('--json', 'Output as JSON (base64url-encoded data)')
+  .option('--quiet', 'Output only the base64url-encoded data (for piping)')
+  .action(attachmentDownloadCommand)
 
 program.parse()
 
