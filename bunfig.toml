@@ -1,4 +1,2 @@
-preload = []
-
 [loader]
 ".md" = "text"
