@@ -24,7 +24,7 @@ export async function attachmentGetCommand(uuid: string, options: OutputOptions)
 
   try {
     const attachment = await authedRequest<EmailAttachment>(
-      `public_api/v1/email_attachment/${encodeURIComponent(uuid)}`,
+      `public_api/v1/email_attachments/${encodeURIComponent(uuid)}`,
     )
 
     const lines = [

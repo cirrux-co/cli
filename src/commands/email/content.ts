@@ -28,7 +28,7 @@ export async function emailContentCommand(
 
   try {
     const { body } = await authedRequestRaw(
-      `public_api/v1/email/${encodeURIComponent(uuid)}/get/${encodeURIComponent(format)}`,
+      `public_api/v1/emails/${encodeURIComponent(uuid)}/get/${encodeURIComponent(format)}`,
     )
 
     process.stdout.write(body)

@@ -22,7 +22,7 @@ export async function attachmentDownloadCommand(uuid: string, options: OutputOpt
 
   try {
     const result = await authedRequest<AttachmentData>(
-      `public_api/v1/email_attachment/${encodeURIComponent(uuid)}/get`,
+      `public_api/v1/email_attachments/${encodeURIComponent(uuid)}/get`,
     )
 
     if (options.json) {

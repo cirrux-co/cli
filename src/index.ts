@@ -6,6 +6,7 @@ import { logoutCommand } from './commands/logout.js'
 import { mailboxListCommand } from './commands/mailbox/list.js'
 import { mailboxGetCommand } from './commands/mailbox/get.js'
 import { threadListCommand } from './commands/thread/list.js'
+import { threadGetCommand } from './commands/thread/get.js'
 import { emailGetCommand } from './commands/email/get.js'
 import { emailContentCommand } from './commands/email/content.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
@@ -71,6 +72,14 @@ thread
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only thread UUIDs, one per line (for piping)')
   .action(threadListCommand)
+
+thread
+  .command('get')
+  .description('Get a thread with its non-deleted emails')
+  .argument('<uuid>', 'Thread UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUIDs, one per line (for piping)')
+  .action(threadGetCommand)
 
 const email = program
   .command('email')

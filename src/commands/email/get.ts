@@ -40,7 +40,7 @@ export async function emailGetCommand(uuid: string, options: OutputOptions): Pro
   }
 
   try {
-    const email = await authedRequest<Email>(`public_api/v1/email/${encodeURIComponent(uuid)}`)
+    const email = await authedRequest<Email>(`public_api/v1/emails/${encodeURIComponent(uuid)}`)
 
     const from = email.from?.map(formatAddress).join(', ') ?? 'Unknown'
     const to = email.to?.map(formatAddress).join(', ') ?? ''
