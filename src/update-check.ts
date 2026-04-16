@@ -40,6 +40,16 @@ async function fetchLatestVersion(): Promise<string | null> {
   }
 }
 
+export function compareVersions(a: string, b: string): number {
+  const parse = (v: string) => {
+    const parts = v.split('.').map((p) => parseInt(p, 10) || 0)
+    return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0] as const
+  }
+  const [aMaj, aMin, aPatch] = parse(a)
+  const [bMaj, bMin, bPatch] = parse(b)
+  return aMaj - bMaj || aMin - bMin || aPatch - bPatch
+}
+
 export async function checkForUpdate(currentVersion: string) {
   const cache = readCache()
   const now = Date.now()
@@ -55,7 +65,7 @@ export async function checkForUpdate(currentVersion: string) {
     }
   }
 
-  if (latestVersion && latestVersion !== currentVersion) {
+  if (latestVersion && compareVersions(latestVersion, currentVersion) > 0) {
     console.log(
       `\nUpdate available: ${currentVersion} → ${latestVersion}\nRun \`brew upgrade cirrux\` to update.\n`
     )
