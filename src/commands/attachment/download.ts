@@ -1,4 +1,4 @@
-import { apiRequest } from '../../api.js'
+import { authedRequest } from '../../api.js'
 import { getActiveCredentials } from '../../config.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
@@ -21,9 +21,8 @@ export async function attachmentDownloadCommand(uuid: string, options: OutputOpt
   }
 
   try {
-    const result = await apiRequest<AttachmentData>(
+    const result = await authedRequest<AttachmentData>(
       `public_api/v1/email_attachment/${encodeURIComponent(uuid)}/get`,
-      { token: creds.access_token },
     )
 
     if (options.json) {

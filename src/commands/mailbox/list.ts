@@ -1,4 +1,4 @@
-import { apiRequest } from '../../api.js'
+import { authedRequest } from '../../api.js'
 import { getActiveCredentials } from '../../config.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
@@ -30,9 +30,7 @@ export async function mailboxListCommand(options: OutputOptions): Promise<void> 
   }
 
   try {
-    const response = await apiRequest<MailboxListResponse>('public_api/v1/mailboxes', {
-      token: creds.access_token,
-    })
+    const response = await authedRequest<MailboxListResponse>('public_api/v1/mailboxes')
 
     const data = {
       object: response.object,

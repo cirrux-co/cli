@@ -1,4 +1,4 @@
-import { apiRequest } from '../api.js'
+import { authedRequest } from '../api.js'
 import { getActiveCredentials } from '../config.js'
 import { ExitCode } from '../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../output.js'
@@ -15,12 +15,10 @@ export async function whoamiCommand(options: OutputOptions): Promise<void> {
   }
 
   try {
-    const profile = await apiRequest<{
+    const profile = await authedRequest<{
       user?: { uuid: string; username: string; first_name: string; last_name: string }
       workspace?: { uuid: string; name: string }
-    }>('public_api/v1/user/profile', {
-      token: creds.access_token,
-    })
+    }>('public_api/v1/user/profile')
 
     const data: Record<string, unknown> = {}
     const lines: string[] = []

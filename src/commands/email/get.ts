@@ -1,4 +1,4 @@
-import { apiRequest } from '../../api.js'
+import { authedRequest } from '../../api.js'
 import { getActiveCredentials } from '../../config.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
@@ -40,9 +40,7 @@ export async function emailGetCommand(uuid: string, options: OutputOptions): Pro
   }
 
   try {
-    const email = await apiRequest<Email>(`public_api/v1/email/${encodeURIComponent(uuid)}`, {
-      token: creds.access_token,
-    })
+    const email = await authedRequest<Email>(`public_api/v1/email/${encodeURIComponent(uuid)}`)
 
     const from = email.from?.map(formatAddress).join(', ') ?? 'Unknown'
     const to = email.to?.map(formatAddress).join(', ') ?? ''

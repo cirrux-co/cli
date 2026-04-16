@@ -1,4 +1,4 @@
-import { apiRequest } from '../../api.js'
+import { authedRequest } from '../../api.js'
 import { getActiveCredentials } from '../../config.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
@@ -96,9 +96,7 @@ export async function threadListCommand(
     const qs = params.toString()
     const path = `public_api/v1/mailboxes/${encodeURIComponent(mailboxUuid)}/threads${qs ? `?${qs}` : ''}`
 
-    const response = await apiRequest<ThreadListResponse>(path, {
-      token: creds.access_token,
-    })
+    const response = await authedRequest<ThreadListResponse>(path)
 
     const data: Record<string, unknown> = {
       object: response.object,

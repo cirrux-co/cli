@@ -1,4 +1,4 @@
-import { apiRequest } from '../../api.js'
+import { authedRequest } from '../../api.js'
 import { getActiveCredentials } from '../../config.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
@@ -23,9 +23,7 @@ export async function mailboxGetCommand(id: string, options: OutputOptions): Pro
   }
 
   try {
-    const mailbox = await apiRequest<Mailbox>(`public_api/v1/mailboxes/${encodeURIComponent(id)}`, {
-      token: creds.access_token,
-    })
+    const mailbox = await authedRequest<Mailbox>(`public_api/v1/mailboxes/${encodeURIComponent(id)}`)
 
     const lines = [
       `UUID:       ${mailbox.uuid}`,

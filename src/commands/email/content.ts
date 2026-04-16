@@ -1,4 +1,4 @@
-import { apiRequestRaw } from '../../api.js'
+import { authedRequestRaw } from '../../api.js'
 import { getActiveCredentials } from '../../config.js'
 import { ExitCode } from '../../exit-codes.js'
 import { outputError, type OutputOptions } from '../../output.js'
@@ -27,9 +27,8 @@ export async function emailContentCommand(
   }
 
   try {
-    const { body } = await apiRequestRaw(
+    const { body } = await authedRequestRaw(
       `public_api/v1/email/${encodeURIComponent(uuid)}/get/${encodeURIComponent(format)}`,
-      { token: creds.access_token },
     )
 
     process.stdout.write(body)

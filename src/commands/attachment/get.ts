@@ -1,4 +1,4 @@
-import { apiRequest } from '../../api.js'
+import { authedRequest } from '../../api.js'
 import { getActiveCredentials } from '../../config.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
@@ -23,9 +23,8 @@ export async function attachmentGetCommand(uuid: string, options: OutputOptions)
   }
 
   try {
-    const attachment = await apiRequest<EmailAttachment>(
+    const attachment = await authedRequest<EmailAttachment>(
       `public_api/v1/email_attachment/${encodeURIComponent(uuid)}`,
-      { token: creds.access_token },
     )
 
     const lines = [
