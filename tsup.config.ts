@@ -6,6 +6,9 @@ export default defineConfig({
   format: ['esm'],
   target: 'node20',
   clean: true,
+  loader: {
+    '.md': 'text',
+  },
   define: {
     __CLI_VERSION__: JSON.stringify(pkg.version),
   },

@@ -1,0 +1,4 @@
+preload = []
+
+[loader]
+".md" = "text"

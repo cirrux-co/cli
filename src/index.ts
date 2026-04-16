@@ -12,6 +12,7 @@ import { emailContentCommand } from './commands/email/content.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
 import { attachmentDownloadCommand } from './commands/attachment/download.js'
 import { whoamiCommand } from './commands/whoami.js'
+import { installSkillCommand, printSkillCommand } from './commands/install-skill.js'
 import { checkForUpdate } from './update-check.js'
 import { CLI_VERSION } from './version.js'
 
@@ -121,6 +122,26 @@ attachment
   .option('--json', 'Output as JSON (base64url-encoded data)')
   .option('--quiet', 'Output only the base64url-encoded data (for piping)')
   .action(attachmentDownloadCommand)
+
+const skill = program
+  .command('skill')
+  .description('Agent skill for Cirrux — makes AI coding assistants fluent in this CLI')
+
+skill
+  .command('install')
+  .description('Install the Cirrux skill into your Claude Code config')
+  .option('--project', 'Install into ./.claude/skills/cirrux/ instead of ~/.claude/skills/cirrux/')
+  .option('--force', 'Overwrite an existing skill file')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the installed path (for piping)')
+  .action(installSkillCommand)
+
+skill
+  .command('print')
+  .description('Print the bundled SKILL.md contents to stdout')
+  .option('--json', 'Wrap the content in a JSON object')
+  .option('--quiet', 'Alias for printing the raw content')
+  .action(printSkillCommand)
 
 program.parse()
 
