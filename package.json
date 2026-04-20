@@ -1,14 +1,14 @@
 {
   "name": "@cirrux/cli",
-  "version": "0.12.2",
+  "version": "0.12.3",
   "private": true,
   "type": "module",
   "bin": {
     "cirrux": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
@@ -19,7 +19,7 @@
   "devDependencies": {
     "@types/bun": "^1.1.0",
     "@types/node": "^22.0.0",
-    "tsup": "^8.0.0",
+    "tsdown": "^0.21.9",
     "typescript": "^5.0.0"
   }
 }

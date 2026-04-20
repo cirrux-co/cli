@@ -1,4 +1,4 @@
-import { defineConfig } from 'tsup'
+import { defineConfig } from 'tsdown'
 import pkg from './package.json'
 
 export default defineConfig({
@@ -6,6 +6,7 @@ export default defineConfig({
   format: ['esm'],
   target: 'node20',
   clean: true,
+  outExtensions: () => ({ js: '.js' }),
   loader: {
     '.md': 'text',
   },
