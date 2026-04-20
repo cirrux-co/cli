@@ -10,8 +10,8 @@ const baseEmail = {
   cc: [],
   subject: 'Hello',
   snippet: null,
-  is_read: true,
-  is_flagged: false,
+  read_at: '2026-01-15T10:00:00Z',
+  flagged_at: null,
   date: '2026-01-15T09:30:00Z',
   labels: [],
   attachments: [],
@@ -34,7 +34,7 @@ test('formatEmailLine includes uuid, from, and subject', () => {
 })
 
 test('formatEmailLine marks unread and flagged emails', () => {
-  const out = formatEmailLine({ ...baseEmail, is_read: false, is_flagged: true })
+  const out = formatEmailLine({ ...baseEmail, read_at: null, flagged_at: '2026-01-15T11:00:00Z' })
   expect(out).toContain('unread')
   expect(out).toContain('flagged')
 })

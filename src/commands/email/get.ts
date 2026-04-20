@@ -21,8 +21,8 @@ interface Email {
   cc: { name: string | null; address: string }[] | null
   subject: string
   snippet: string | null
-  is_read: boolean
-  is_flagged: boolean
+  read_at: string | null
+  flagged_at: string | null
   date: string
   labels: string[]
   attachments: EmailAttachment[]
@@ -57,8 +57,8 @@ export async function emailGetCommand(uuid: string, options: OutputOptions): Pro
       `To:          ${to}`,
       ...(cc ? [`CC:          ${cc}`] : []),
       `Date:        ${email.date}`,
-      `Read:        ${email.is_read ? 'Yes' : 'No'}`,
-      `Flagged:     ${email.is_flagged ? 'Yes' : 'No'}`,
+      `Read:        ${email.read_at ? 'Yes' : 'No'}`,
+      `Flagged:     ${email.flagged_at ? 'Yes' : 'No'}`,
       `Labels:      ${email.labels.join(', ') || 'None'}`,
       `Attachments: ${attachments}`,
       ...(email.snippet ? [`Snippet:     ${email.snippet}`] : []),

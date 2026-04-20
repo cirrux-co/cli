@@ -21,8 +21,8 @@ interface Email {
   cc: { name: string | null; address: string }[]
   subject: string
   snippet: string | null
-  is_read: boolean
-  is_flagged: boolean
+  read_at: string | null
+  flagged_at: string | null
   date: string
   labels: string[]
   attachments: EmailAttachment[]

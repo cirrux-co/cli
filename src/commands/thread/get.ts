@@ -21,8 +21,8 @@ interface Email {
   cc: { name: string | null; address: string }[] | null
   subject: string
   snippet: string | null
-  is_read: boolean
-  is_flagged: boolean
+  read_at: string | null
+  flagged_at: string | null
   date: string
   labels: string[]
   attachments: EmailAttachment[]
@@ -40,8 +40,8 @@ interface Thread {
 export function formatEmailLine(email: Email): string {
   const from = email.from[0] ? formatAddress(email.from[0]) : 'Unknown'
   const flags: string[] = []
-  if (!email.is_read) flags.push('unread')
-  if (email.is_flagged) flags.push('flagged')
+  if (!email.read_at) flags.push('unread')
+  if (email.flagged_at) flags.push('flagged')
   if (email.attachments.length > 0) flags.push(`${email.attachments.length} attachment${email.attachments.length === 1 ? '' : 's'}`)
   const flagStr = flags.length > 0 ? ` [${flags.join(', ')}]` : ''
   const labels = email.labels.length > 0 ? `\n    Labels: ${email.labels.join(', ')}` : ''

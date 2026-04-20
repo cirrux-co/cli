@@ -28,8 +28,8 @@ const baseEmail = {
   cc: [],
   subject: 'Hello',
   snippet: null,
-  is_read: true,
-  is_flagged: false,
+  read_at: '2026-01-15T10:00:00Z',
+  flagged_at: null,
   date: '2026-01-15T09:30:00Z',
   labels: [],
   attachments: [],
@@ -56,7 +56,7 @@ test('formatThread renders a single-email thread without count or unread suffix'
 test('formatThread shows the email count when there are multiple emails', () => {
   const out = formatThread({
     ...baseThread,
-    emails: [baseEmail, { ...baseEmail, uuid: 'e2', is_read: false }],
+    emails: [baseEmail, { ...baseEmail, uuid: 'e2', read_at: null }],
   })
   expect(out).toContain('(2)')
   expect(out).toContain('[1 unread]')

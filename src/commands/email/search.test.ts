@@ -10,8 +10,8 @@ const baseEmail = {
   cc: [],
   subject: 'Hello',
   snippet: null,
-  is_read: true,
-  is_flagged: false,
+  read_at: '2026-01-15T10:00:00Z',
+  flagged_at: null,
   date: '2026-01-15T09:30:00Z',
   labels: [],
   attachments: [],
@@ -26,7 +26,7 @@ test('formatEmailSummary renders uuid, subject, and from/date', () => {
 })
 
 test('formatEmailSummary marks unread emails', () => {
-  const out = formatEmailSummary({ ...baseEmail, is_read: false })
+  const out = formatEmailSummary({ ...baseEmail, read_at: null })
   expect(out).toContain('[unread]')
 })
 

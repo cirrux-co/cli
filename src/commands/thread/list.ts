@@ -20,8 +20,8 @@ interface Email {
   cc: { name: string | null; address: string }[]
   subject: string
   snippet: string | null
-  is_read: boolean
-  is_flagged: boolean
+  read_at: string | null
+  flagged_at: string | null
   date: string
   labels: string[]
   attachments: EmailAttachment[]
@@ -59,7 +59,7 @@ export function formatThread(thread: Thread): string {
   const from = lastEmail ? formatAddress(lastEmail.from[0]) : 'Unknown'
   const subject = lastEmail?.subject || '(no subject)'
   const count = thread.emails.length
-  const unread = thread.emails.filter((e) => !e.is_read).length
+  const unread = thread.emails.filter((e) => !e.read_at).length
   const labels = lastEmail?.labels?.join(', ') || ''
 
   const countStr = count > 1 ? ` (${count})` : ''

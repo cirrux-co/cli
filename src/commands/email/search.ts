@@ -21,8 +21,8 @@ interface Email {
   cc: { name: string | null; address: string }[] | null
   subject: string
   snippet: string | null
-  is_read: boolean
-  is_flagged: boolean
+  read_at: string | null
+  flagged_at: string | null
   date: string
   labels: string[]
   attachments: EmailAttachment[]
@@ -42,7 +42,7 @@ export function formatEmailSummary(email: Email): string {
   const subject = email.subject || '(no subject)'
   const date = formatDate(email.date)
   const attachments = email.attachments?.length ? `  [${email.attachments.length} attachment${email.attachments.length === 1 ? '' : 's'}]` : ''
-  const unread = email.is_read ? '' : '  [unread]'
+  const unread = email.read_at ? '' : '  [unread]'
 
   const lines = [
     `${email.uuid}  ${subject}${unread}${attachments}`,
