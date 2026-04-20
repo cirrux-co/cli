@@ -11,6 +11,12 @@ import { threadSearchCommand } from './commands/thread/search.js'
 import { emailGetCommand } from './commands/email/get.js'
 import { emailContentCommand } from './commands/email/content.js'
 import { emailSearchCommand } from './commands/email/search.js'
+import {
+  emailReadCommand,
+  emailUnreadCommand,
+  emailFlagCommand,
+  emailUnflagCommand,
+} from './commands/email/update.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
 import { attachmentDownloadCommand } from './commands/attachment/download.js'
 import { whoamiCommand } from './commands/whoami.js'
@@ -126,6 +132,38 @@ email
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only email UUIDs, one per line (for piping)')
   .action(emailSearchCommand)
+
+email
+  .command('read')
+  .description('Mark an email as read')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailReadCommand)
+
+email
+  .command('unread')
+  .description('Mark an email as unread')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailUnreadCommand)
+
+email
+  .command('flag')
+  .description('Flag an email')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailFlagCommand)
+
+email
+  .command('unflag')
+  .description('Unflag an email')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailUnflagCommand)
 
 const attachment = program
   .command('attachment')

@@ -79,9 +79,15 @@ cirrux email get <email-uuid>                 # email metadata (subject, from, t
 cirrux email content <email-uuid> body        # rendered HTML body
 cirrux email content <email-uuid> raw         # full MIME message
 cirrux email search "<query>"                 # search individual emails (see Search section below)
+cirrux email read <email-uuid>                # mark as read
+cirrux email unread <email-uuid>              # mark as unread
+cirrux email flag <email-uuid>                # flag (star) the email
+cirrux email unflag <email-uuid>              # unflag (unstar) the email
 ```
 
 `cirrux email content` writes directly to stdout (no `--json` wrapping) so you can pipe it to a file: `cirrux email content <uuid> raw > message.eml`.
+
+`read` / `unread` / `flag` / `unflag` all return the updated email (same shape as `cirrux email get`), so `--json` and `--quiet` behave consistently with the rest of the CLI. They're idempotent — marking a read email as read is a no-op that still returns 200.
 
 ### Attachment
 
@@ -161,6 +167,13 @@ cirrux thread search "from:alice@example.com is:unread" --quiet \
     done
 ```
 
+**Mark every unread email from a sender as read:**
+
+```bash
+cirrux email search "from:newsletter@example.com is:unread" --quiet \
+  | xargs -I {} cirrux email read {}
+```
+
 ## Tips for agents
 
 - Always inspect `cirrux <command> --help` before guessing flags — the CLI is self-documenting and new flags land there first.
@@ -168,4 +181,4 @@ cirrux thread search "from:alice@example.com is:unread" --quiet \
 - UUIDs are opaque strings — never try to construct or mutate them.
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
-- The API is read-only today (no send/reply/delete commands). If a user asks for mutations, say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`. Sending, replying, and deleting are not yet exposed — say so rather than fabricating commands.

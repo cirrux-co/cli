@@ -33,6 +33,10 @@ cirrux email search "has:attachment after:2026-01-01" --limit 50
 cirrux email content <email-uuid> body
 cirrux email content <email-uuid> raw > message.eml
 
+# Mark read/unread or flag/unflag
+cirrux email read <email-uuid>
+cirrux email flag <email-uuid>
+
 # Save an attachment to disk
 cirrux attachment download <attachment-uuid> > attachment.pdf
 ```
@@ -50,6 +54,8 @@ cirrux attachment download <attachment-uuid> > attachment.pdf
 | `cirrux email get <email-uuid>` | Email metadata |
 | `cirrux email content <email-uuid> body\|raw` | Rendered HTML body or full MIME |
 | `cirrux email search <query>` | Search individual emails across your mailboxes |
+| `cirrux email read <email-uuid>` / `cirrux email unread <email-uuid>` | Mark an email as read or unread |
+| `cirrux email flag <email-uuid>` / `cirrux email unflag <email-uuid>` | Flag (star) or unflag an email |
 | `cirrux attachment get <attachment-uuid>` | Attachment metadata |
 | `cirrux attachment download <attachment-uuid>` | Raw bytes to stdout (use `--json` for base64url) |
 | `cirrux skill install` / `cirrux skill print` | Install or preview the bundled agent skill |
