@@ -54,7 +54,7 @@ cirrux attachment download <attachment-uuid> > attachment.pdf
 | `cirrux attachment download <attachment-uuid>` | Raw bytes to stdout (use `--json` for base64url) |
 | `cirrux skill install` / `cirrux skill print` | Install or preview the bundled agent skill |
 
-Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.
+Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `in:inbox`/`in:sent`/`in:drafts`/`in:archive`/`in:snoozed`/`in:starred`, `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.
 
 Every data-producing command supports three output modes:
 

@@ -115,6 +115,7 @@ Supported query operators (ANDed by default, prefix with `-` to negate):
 | `is:starred` / `is:unstarred` | `is:starred`              |
 | `is:replied`        | `is:replied`                        |
 | `has:attachment`    | `has:attachment`                    |
+| `in:`               | `in:inbox`, `in:sent`, `in:drafts`, `in:archive`, `in:snoozed`, `in:starred` |
 | `after:` / `before:` | `after:2026-01-01 before:2026-04-01` |
 | Bare term           | `invoice` (full-text)               |
 | Phrase              | `"monthly report"`                  |
