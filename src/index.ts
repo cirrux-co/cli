@@ -7,8 +7,10 @@ import { mailboxListCommand } from './commands/mailbox/list.js'
 import { mailboxGetCommand } from './commands/mailbox/get.js'
 import { threadListCommand } from './commands/thread/list.js'
 import { threadGetCommand } from './commands/thread/get.js'
+import { threadSearchCommand } from './commands/thread/search.js'
 import { emailGetCommand } from './commands/email/get.js'
 import { emailContentCommand } from './commands/email/content.js'
+import { emailSearchCommand } from './commands/email/search.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
 import { attachmentDownloadCommand } from './commands/attachment/download.js'
 import { whoamiCommand } from './commands/whoami.js'
@@ -82,6 +84,17 @@ thread
   .option('--quiet', 'Output only the email UUIDs, one per line (for piping)')
   .action(threadGetCommand)
 
+thread
+  .command('search')
+  .description('Search threads across the user\'s mailboxes')
+  .argument('<query>', 'Search query (e.g. "from:alice is:unread subject:\\"quarterly review\\"")')
+  .option('--mailbox-uuid <uuid>', 'Restrict results to a single mailbox')
+  .option('--limit <n>', 'Number of threads to return (1-100, default 25)')
+  .option('--cursor <cursor>', 'Pagination cursor from a previous response')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only thread UUIDs, one per line (for piping)')
+  .action(threadSearchCommand)
+
 const email = program
   .command('email')
   .description('Manage emails')
@@ -102,6 +115,17 @@ email
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the content (for piping)')
   .action(emailContentCommand)
+
+email
+  .command('search')
+  .description('Search individual emails across the user\'s mailboxes')
+  .argument('<query>', 'Search query (e.g. "has:attachment after:2026-01-01")')
+  .option('--mailbox-uuid <uuid>', 'Restrict results to a single mailbox')
+  .option('--limit <n>', 'Number of emails to return (1-100, default 25)')
+  .option('--cursor <cursor>', 'Pagination cursor from a previous response')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only email UUIDs, one per line (for piping)')
+  .action(emailSearchCommand)
 
 const attachment = program
   .command('attachment')

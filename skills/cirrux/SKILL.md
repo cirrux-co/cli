@@ -69,6 +69,7 @@ cirrux thread list <mailbox-uuid> --label inbox    # filter by label (inbox, sen
 cirrux thread list <mailbox-uuid> --limit 50       # 1-100 (default 25)
 cirrux thread list <mailbox-uuid> --cursor <cur>   # pagination (cursor is in the previous response)
 cirrux thread get <thread-uuid>                    # thread with all non-deleted emails (uuid, from, subject, labels, attachment counts)
+cirrux thread search "<query>"                     # search threads (see Search section below)
 ```
 
 ### Email
@@ -77,6 +78,7 @@ cirrux thread get <thread-uuid>                    # thread with all non-deleted
 cirrux email get <email-uuid>                 # email metadata (subject, from, to, labels, attachments)
 cirrux email content <email-uuid> body        # rendered HTML body
 cirrux email content <email-uuid> raw         # full MIME message
+cirrux email search "<query>"                 # search individual emails (see Search section below)
 ```
 
 `cirrux email content` writes directly to stdout (no `--json` wrapping) so you can pipe it to a file: `cirrux email content <uuid> raw > message.eml`.
@@ -88,6 +90,37 @@ cirrux attachment get <attachment-uuid>                # attachment metadata (fi
 cirrux attachment download <attachment-uuid> > file    # raw bytes to stdout
 cirrux attachment download <attachment-uuid> --json    # JSON with base64url-encoded data
 ```
+
+## Search
+
+`cirrux thread search "<query>"` and `cirrux email search "<query>"` both hit the same search engine — the difference is the grouping of results. Use `thread search` when the user cares about conversations, `email search` when they care about individual messages (e.g. "find every email with an attachment").
+
+Both commands accept the same flags:
+
+```bash
+cirrux thread search "<query>" --mailbox-uuid <uuid>   # restrict to one mailbox
+cirrux thread search "<query>" --limit 50              # 1-100 (default 25)
+cirrux thread search "<query>" --cursor <cur>          # pagination cursor from the previous response
+```
+
+Supported query operators (ANDed by default, prefix with `-` to negate):
+
+| Operator            | Example                             |
+|---------------------|-------------------------------------|
+| `from:`             | `from:alice@example.com`            |
+| `to:` / `cc:` / `bcc:` | `to:me@example.com`              |
+| `subject:`          | `subject:"quarterly review"`        |
+| `body:`             | `body:invoice`                      |
+| `is:read` / `is:unread` | `is:unread`                     |
+| `is:starred` / `is:unstarred` | `is:starred`              |
+| `is:replied`        | `is:replied`                        |
+| `has:attachment`    | `has:attachment`                    |
+| `after:` / `before:` | `after:2026-01-01 before:2026-04-01` |
+| Bare term           | `invoice` (full-text)               |
+| Phrase              | `"monthly report"`                  |
+| Negate              | `-from:noreply@example.com`         |
+
+Results exclude trash and junk automatically. Quote the whole query when it contains spaces or shell metacharacters: `cirrux thread search "from:alice is:unread"`.
 
 ## Common workflows
 
@@ -116,10 +149,22 @@ cirrux email get <email-uuid> --json \
     done
 ```
 
+**Find unread mail from a specific sender and print each body:**
+
+```bash
+cirrux thread search "from:alice@example.com is:unread" --quiet \
+  | while read thread_uuid; do
+      cirrux thread get "$thread_uuid" --quiet | while read email_uuid; do
+        cirrux email content "$email_uuid" body
+      done
+    done
+```
+
 ## Tips for agents
 
 - Always inspect `cirrux <command> --help` before guessing flags — the CLI is self-documenting and new flags land there first.
 - Prefer `--json` when you need to extract specific fields, and `--quiet` when you're piping UUIDs into the next call.
 - UUIDs are opaque strings — never try to construct or mutate them.
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
+- For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - The API is read-only today (no send/reply/delete commands). If a user asks for mutations, say so rather than fabricating commands.

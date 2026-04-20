@@ -25,6 +25,10 @@ cirrux thread list <mailbox-uuid> --label inbox --limit 20
 # Open a thread and see every non-deleted email in it
 cirrux thread get <thread-uuid>
 
+# Search threads or individual emails across your mailboxes
+cirrux thread search "from:alice is:unread"
+cirrux email search "has:attachment after:2026-01-01" --limit 50
+
 # Read one email's HTML body or full MIME
 cirrux email content <email-uuid> body
 cirrux email content <email-uuid> raw > message.eml
@@ -32,6 +36,25 @@ cirrux email content <email-uuid> raw > message.eml
 # Save an attachment to disk
 cirrux attachment download <attachment-uuid> > attachment.pdf
 ```
+
+### Commands
+
+| Command | What it does |
+|---------|--------------|
+| `cirrux login` / `cirrux logout` / `cirrux whoami` | Browser OAuth, sign out, show current user + workspace |
+| `cirrux mailbox list` | List mailboxes you have access to |
+| `cirrux mailbox get <mailbox-uuid>` | Mailbox metadata |
+| `cirrux thread list <mailbox-uuid>` | List threads in a mailbox (`--label`, `--limit`, `--cursor`) |
+| `cirrux thread get <thread-uuid>` | Thread with all non-deleted emails |
+| `cirrux thread search <query>` | Search threads across your mailboxes (`--mailbox-uuid`, `--limit`, `--cursor`) |
+| `cirrux email get <email-uuid>` | Email metadata |
+| `cirrux email content <email-uuid> body\|raw` | Rendered HTML body or full MIME |
+| `cirrux email search <query>` | Search individual emails across your mailboxes |
+| `cirrux attachment get <attachment-uuid>` | Attachment metadata |
+| `cirrux attachment download <attachment-uuid>` | Raw bytes to stdout (use `--json` for base64url) |
+| `cirrux skill install` / `cirrux skill print` | Install or preview the bundled agent skill |
+
+Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.
 
 Every data-producing command supports three output modes:
 
