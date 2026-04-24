@@ -18,6 +18,7 @@ interface TokenResponse {
   refresh_token: string
   session_uuid: string
   access_token_expires_in: number
+  scopes?: string[]
 }
 
 export async function login(): Promise<void> {
@@ -106,6 +107,7 @@ export async function login(): Promise<void> {
     access_token: tokenResponse.access_token,
     refresh_token: tokenResponse.refresh_token,
     session_uuid: tokenResponse.session_uuid,
+    scopes: tokenResponse.scopes,
     api_url: apiUrl(),
   })
 

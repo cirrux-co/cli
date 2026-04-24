@@ -88,6 +88,7 @@ interface RefreshTokenResponse {
   refresh_token?: string
   session_uuid?: string
   access_token_expires_in?: number
+  scopes?: string[]
 }
 
 // De-duplicates concurrent refreshes: if multiple authed requests 401 at the
@@ -118,6 +119,7 @@ async function refreshAccessToken(): Promise<void> {
     access_token: response.access_token,
     refresh_token: response.refresh_token ?? creds.refresh_token,
     session_uuid: response.session_uuid ?? creds.session_uuid,
+    scopes: response.scopes ?? creds.scopes,
   })
 }
 

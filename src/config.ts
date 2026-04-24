@@ -11,6 +11,7 @@ interface WorkspaceCredentials {
   access_token: string
   refresh_token: string
   session_uuid: string
+  scopes?: string[]
   api_url: string
 }
 

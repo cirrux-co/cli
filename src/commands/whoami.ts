@@ -37,6 +37,11 @@ export async function whoamiCommand(options: OutputOptions): Promise<void> {
       lines.push(`Workspace: ${profile.workspace.name} (${profile.workspace.uuid})`)
     }
 
+    if (creds.scopes && creds.scopes.length > 0) {
+      data.scopes = creds.scopes
+      lines.push(`Scopes: ${creds.scopes.join(', ')}`)
+    }
+
     output(data, {
       ...options,
       text: lines.join('\n'),
