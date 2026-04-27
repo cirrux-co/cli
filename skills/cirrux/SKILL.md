@@ -57,8 +57,9 @@ Discover everything with `cirrux --help` and `cirrux <noun> --help`. The stable 
 ### Mailbox
 
 ```bash
-cirrux mailbox list                    # list mailboxes the user has access to
-cirrux mailbox get <mailbox-uuid>      # mailbox metadata
+cirrux mailbox list                              # list mailboxes the user has access to
+cirrux mailbox get <mailbox-uuid>                # mailbox metadata
+cirrux mailbox labels list <mailbox-uuid>        # list system + custom labels (uuid, type, name)
 ```
 
 ### Thread
@@ -83,11 +84,17 @@ cirrux email read <email-uuid>                # mark as read
 cirrux email unread <email-uuid>              # mark as unread
 cirrux email flag <email-uuid>                # flag (star) the email
 cirrux email unflag <email-uuid>              # unflag (unstar) the email
+cirrux email labels add <email-uuid> --type archive                # move to archive (or inbox/trash/junk)
+cirrux email labels add <email-uuid> --label-uuid <label-uuid>     # apply a custom label
+cirrux email labels remove <email-uuid> --type archive             # remove from archive
+cirrux email labels remove <email-uuid> --label-uuid <label-uuid>  # remove a custom label
 ```
 
 `cirrux email content` writes directly to stdout (no `--json` wrapping) so you can pipe it to a file: `cirrux email content <uuid> raw > message.eml`.
 
-`read` / `unread` / `flag` / `unflag` all return the updated email (same shape as `cirrux email get`), so `--json` and `--quiet` behave consistently with the rest of the CLI. They're idempotent — marking a read email as read is a no-op that still returns 200.
+`read` / `unread` / `flag` / `unflag` / `labels add` / `labels remove` all return the updated email (same shape as `cirrux email get`), so `--json` and `--quiet` behave consistently with the rest of the CLI. They're idempotent — marking a read email as read, or adding a label that's already present, is a no-op that still returns 200.
+
+`labels add` and `labels remove` accept exactly one of `--type` (a system label: `inbox`, `archive`, `trash`, `junk`) or `--label-uuid` (for custom labels — get the UUID from `cirrux mailbox labels list`). The system labels `sent`, `draft`, and `snoozed` are managed by other parts of the platform and the API will reject attempts to add/remove them by hand.
 
 ### Attachment
 
@@ -181,4 +188,4 @@ cirrux email search "from:newsletter@example.com is:unread" --quiet \
 - UUIDs are opaque strings — never try to construct or mutate them.
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`. Sending, replying, and deleting are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag` / `labels add` / `labels remove`. Sending, replying, deleting, and snoozing are not yet exposed — say so rather than fabricating commands.

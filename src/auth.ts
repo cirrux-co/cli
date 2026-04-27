@@ -116,4 +116,7 @@ export async function login(): Promise<void> {
   if (profile.user) {
     console.log(`User: ${profile.user.first_name} ${profile.user.last_name} (${profile.user.username})`)
   }
+  if (tokenResponse.scopes && tokenResponse.scopes.length > 0) {
+    console.log(`Scopes: ${tokenResponse.scopes.join(', ')}`)
+  }
 }

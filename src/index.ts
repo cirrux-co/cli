@@ -5,6 +5,7 @@ import { loginCommand } from './commands/login.js'
 import { logoutCommand } from './commands/logout.js'
 import { mailboxListCommand } from './commands/mailbox/list.js'
 import { mailboxGetCommand } from './commands/mailbox/get.js'
+import { mailboxLabelsListCommand } from './commands/mailbox/labels.js'
 import { threadListCommand } from './commands/thread/list.js'
 import { threadGetCommand } from './commands/thread/get.js'
 import { threadSearchCommand } from './commands/thread/search.js'
@@ -17,6 +18,10 @@ import {
   emailFlagCommand,
   emailUnflagCommand,
 } from './commands/email/update.js'
+import {
+  emailLabelsAddCommand,
+  emailLabelsRemoveCommand,
+} from './commands/email/labels.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
 import { attachmentDownloadCommand } from './commands/attachment/download.js'
 import { whoamiCommand } from './commands/whoami.js'
@@ -66,6 +71,18 @@ mailbox
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the mailbox ID (for piping)')
   .action(mailboxGetCommand)
+
+const mailboxLabels = mailbox
+  .command('labels')
+  .description('Manage labels for a mailbox')
+
+mailboxLabels
+  .command('list')
+  .description('List labels (system + custom) for a mailbox')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only label UUIDs, one per line (for piping)')
+  .action(mailboxLabelsListCommand)
 
 const thread = program
   .command('thread')
@@ -164,6 +181,30 @@ email
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the email UUID (for piping)')
   .action(emailUnflagCommand)
+
+const emailLabels = email
+  .command('labels')
+  .description('Add or remove labels on an email')
+
+emailLabels
+  .command('add')
+  .description('Add a label to an email (idempotent)')
+  .argument('<uuid>', 'Email UUID')
+  .option('--type <type>', 'System label type (inbox, archive, trash, junk)')
+  .option('--label-uuid <uuid>', 'Custom label UUID (from `cirrux mailbox labels list`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailLabelsAddCommand)
+
+emailLabels
+  .command('remove')
+  .description('Remove a label from an email (idempotent)')
+  .argument('<uuid>', 'Email UUID')
+  .option('--type <type>', 'System label type (inbox, archive, trash, junk)')
+  .option('--label-uuid <uuid>', 'Custom label UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailLabelsRemoveCommand)
 
 const attachment = program
   .command('attachment')
