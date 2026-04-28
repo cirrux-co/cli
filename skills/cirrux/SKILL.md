@@ -84,17 +84,34 @@ cirrux email read <email-uuid>                # mark as read
 cirrux email unread <email-uuid>              # mark as unread
 cirrux email flag <email-uuid>                # flag (star) the email
 cirrux email unflag <email-uuid>              # unflag (unstar) the email
-cirrux email labels add <email-uuid> --type archive                # move to archive (or inbox/trash/junk)
-cirrux email labels add <email-uuid> --label-uuid <label-uuid>     # apply a custom label
-cirrux email labels remove <email-uuid> --type archive             # remove from archive
+cirrux email archive <email-uuid>             # archive (add archive, remove inbox)
+cirrux email unarchive <email-uuid>           # move back to inbox
+cirrux email trash <email-uuid>               # move to trash
+cirrux email untrash <email-uuid>             # restore from trash to inbox
+cirrux email spam <email-uuid>                # mark as spam
+cirrux email unspam <email-uuid>              # remove from spam, back to inbox
+cirrux email move <email-uuid> --type archive             # move to a system location (inbox/archive/trash/junk)
+cirrux email move <email-uuid> --label-uuid <label-uuid>  # move to a custom label (only that label remains)
+cirrux email labels add <email-uuid> --label-uuid <label-uuid>     # add a custom label (does not change location)
 cirrux email labels remove <email-uuid> --label-uuid <label-uuid>  # remove a custom label
 ```
 
 `cirrux email content` writes directly to stdout (no `--json` wrapping) so you can pipe it to a file: `cirrux email content <uuid> raw > message.eml`.
 
-`read` / `unread` / `flag` / `unflag` / `labels add` / `labels remove` all return the updated email (same shape as `cirrux email get`), so `--json` and `--quiet` behave consistently with the rest of the CLI. They're idempotent — marking a read email as read, or adding a label that's already present, is a no-op that still returns 200.
+All mutations return the updated email (same shape as `cirrux email get`), so `--json` and `--quiet` behave consistently with the rest of the CLI. They're idempotent — archiving an already-archived email, or adding a label that's already present, is a no-op that still returns 200.
 
-`labels add` and `labels remove` accept exactly one of `--type` (a system label: `inbox`, `archive`, `trash`, `junk`) or `--label-uuid` (for custom labels — get the UUID from `cirrux mailbox labels list`). The system labels `sent`, `draft`, and `snoozed` are managed by other parts of the platform and the API will reject attempts to add/remove them by hand.
+### Move emails between locations
+
+**Use the verbs (`archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`) for any inbox/archive/trash/junk transition** — they atomically swap the labels server-side so the email never ends up in two locations at once. Picking `cirrux email labels add --type archive` will be rejected with a 422 because it would leave the email in both inbox and archive.
+
+- `archive` removes inbox, adds archive. Sent messages just lose inbox (they don't carry an archive label).
+- `trash` and `spam` add the trash/junk label; the server then strips every other active label so the email has only that label. To restore, use `untrash` or `unspam`, which put it back in inbox.
+- `move` is the general form: `--type inbox|archive|trash|junk` for system locations, or `--label-uuid <uuid>` to file under a custom label. After `move`, the target is the only active label on the email — every other label (system or custom) is removed.
+- All verbs reject drafts (the compose API owns drafts) and `spam` rejects sent messages.
+
+`labels add` / `labels remove` are still the right tool for custom labels and additive operations. The `--type` flag is **only** useful for `--type inbox` (re-adding inbox to an email that already has it, idempotent) — for any other type, use the verb. The system labels `sent`, `draft`, and `snoozed` are managed by other parts of the platform and the API will reject attempts to add/remove them by hand.
+
+Thread-level versions of these verbs (`cirrux thread archive`, `cirrux thread move`, etc.) are not available yet — loop over `cirrux thread get <thread-uuid> --quiet` and apply the verb per email if you need to operate on a whole thread.
 
 ### Attachment
 
@@ -188,4 +205,4 @@ cirrux email search "from:newsletter@example.com is:unread" --quiet \
 - UUIDs are opaque strings — never try to construct or mutate them.
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
-- Mutations available today: `email read` / `unread` / `flag` / `unflag` / `labels add` / `labels remove`. Sending, replying, deleting, and snoozing are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), and `email labels add` / `labels remove` for custom labels. Sending, replying, deleting, and snoozing are not yet exposed — say so rather than fabricating commands.

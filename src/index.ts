@@ -22,6 +22,15 @@ import {
   emailLabelsAddCommand,
   emailLabelsRemoveCommand,
 } from './commands/email/labels.js'
+import {
+  emailArchiveCommand,
+  emailUnarchiveCommand,
+  emailTrashCommand,
+  emailUntrashCommand,
+  emailSpamCommand,
+  emailUnspamCommand,
+  emailMoveCommand,
+} from './commands/email/transitions.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
 import { attachmentDownloadCommand } from './commands/attachment/download.js'
 import { whoamiCommand } from './commands/whoami.js'
@@ -182,9 +191,67 @@ email
   .option('--quiet', 'Output only the email UUID (for piping)')
   .action(emailUnflagCommand)
 
+email
+  .command('archive')
+  .description('Archive an email (add archive, remove inbox)')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailArchiveCommand)
+
+email
+  .command('unarchive')
+  .description('Move an email back to the inbox')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailUnarchiveCommand)
+
+email
+  .command('trash')
+  .description('Move an email to the trash')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailTrashCommand)
+
+email
+  .command('untrash')
+  .description('Restore an email from the trash to the inbox')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailUntrashCommand)
+
+email
+  .command('spam')
+  .description('Mark an email as spam')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailSpamCommand)
+
+email
+  .command('unspam')
+  .description('Remove an email from spam (back to inbox)')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailUnspamCommand)
+
+email
+  .command('move')
+  .description('Move an email to a target label (system type or custom label)')
+  .argument('<uuid>', 'Email UUID')
+  .option('--type <type>', 'System label type (inbox, archive, trash, junk)')
+  .option('--label-uuid <uuid>', 'Custom label UUID (from `cirrux mailbox labels list`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .action(emailMoveCommand)
+
 const emailLabels = email
   .command('labels')
-  .description('Add or remove labels on an email')
+  .description('Add or remove labels on an email (use email archive/trash/move for system locations)')
 
 emailLabels
   .command('add')
