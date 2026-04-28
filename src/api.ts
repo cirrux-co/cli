@@ -158,6 +158,30 @@ export async function authedRequest<T>(
   return withAccessToken((token) => apiRequest<T>(path, { ...options, token }))
 }
 
+// Same as authedRequest but for endpoints that respond with 204 No Content
+// (e.g. DELETE /v1/drafts/{uuid}) where calling response.json() would throw.
+export async function authedRequestVoid(
+  path: string,
+  options: { method?: string; body?: Record<string, unknown> } = {},
+): Promise<void> {
+  await withAccessToken(async (token) => {
+    const url = new URL(path, apiUrl())
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    headers['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch(url.toString(), {
+      method: options.method ?? (options.body ? 'POST' : 'GET'),
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    })
+
+    if (!response.ok) {
+      const errorBody = await response.text()
+      throw new ApiError(response.status, errorBody)
+    }
+  })
+}
+
 export async function authedRequestRaw(
   path: string,
 ): Promise<{ body: Buffer; contentType: string }> {

@@ -70,7 +70,8 @@ cirrux thread list <mailbox-uuid> --label inbox    # filter by label (inbox, sen
 cirrux thread list <mailbox-uuid> --limit 50       # 1-100 (default 25)
 cirrux thread list <mailbox-uuid> --cursor <cur>   # pagination (cursor is in the previous response)
 cirrux thread get <thread-uuid>                    # thread with all non-deleted emails (uuid, from, subject, labels, attachment counts)
-cirrux thread search "<query>"                     # search threads (see Search section below)
+cirrux thread search "<query>" --mailbox-uuid <uuid>  # search threads in one mailbox (preferred — see Search section)
+cirrux thread search "<query>"                         # cross-mailbox search (use only when the user hasn't narrowed to one)
 ```
 
 ### Email
@@ -79,7 +80,8 @@ cirrux thread search "<query>"                     # search threads (see Search 
 cirrux email get <email-uuid>                 # email metadata (subject, from, to, labels, attachments)
 cirrux email content <email-uuid> body        # rendered HTML body
 cirrux email content <email-uuid> raw         # full MIME message
-cirrux email search "<query>"                 # search individual emails (see Search section below)
+cirrux email search "<query>" --mailbox-uuid <uuid>  # search one mailbox (preferred — see Search section)
+cirrux email search "<query>"                         # cross-mailbox search (use only when the user hasn't narrowed to one)
 cirrux email read <email-uuid>                # mark as read
 cirrux email unread <email-uuid>              # mark as unread
 cirrux email flag <email-uuid>                # flag (star) the email
@@ -113,6 +115,21 @@ All mutations return the updated email (same shape as `cirrux email get`), so `-
 
 Thread-level versions of these verbs (`cirrux thread archive`, `cirrux thread move`, etc.) are not available yet — loop over `cirrux thread get <thread-uuid> --quiet` and apply the verb per email if you need to operate on a whole thread.
 
+### Draft
+
+```bash
+cirrux draft create --mailbox-uuid <mailbox-uuid> --file message.eml   # create from a .eml file
+cat message.eml | cirrux draft create --mailbox-uuid <mailbox-uuid>    # create from stdin
+cirrux draft create --mailbox-uuid <mailbox-uuid> --file reply.eml --in-reply-to <email-uuid>  # link as a reply
+cirrux draft delete <draft-uuid>                                       # delete a draft
+```
+
+`draft create` accepts a full RFC 5322 MIME message — headers + blank line + body. The `From:` address must be one of the mailbox's configured addresses (or its primary address); the API rejects spoofed senders with 422. Supply `--in-reply-to <email-uuid>` to explicitly link the draft to a parent email — it must belong to the same workspace. The response is the new draft (uuid, headers, body_html, body_text, labels include `draft`).
+
+`draft delete` returns 204 with no body. Deleting an email that isn't a draft returns 422 (`not_a_draft`); deleting a non-existent draft returns 404.
+
+Sending drafts is not yet exposed by the CLI — the user has to send from the webmail UI for now.
+
 ### Attachment
 
 ```bash
@@ -125,10 +142,10 @@ cirrux attachment download <attachment-uuid> --json    # JSON with base64url-enc
 
 `cirrux thread search "<query>"` and `cirrux email search "<query>"` both hit the same search engine — the difference is the grouping of results. Use `thread search` when the user cares about conversations, `email search` when they care about individual messages (e.g. "find every email with an attachment").
 
-Both commands accept the same flags:
+**Scope every search you can.** When the user mentions a mailbox (by address, alias, or any identifier in the request), resolve it via `cirrux mailbox list` and pass `--mailbox-uuid <uuid>` on the search. Unscoped search returns results across every mailbox the user can access — fine for genuinely cross-mailbox queries ("everything unread from Alice"), but noise when the user clearly meant one inbox.
 
 ```bash
-cirrux thread search "<query>" --mailbox-uuid <uuid>   # restrict to one mailbox
+cirrux thread search "<query>" --mailbox-uuid <uuid>   # restrict to one mailbox (preferred)
 cirrux thread search "<query>" --limit 50              # 1-100 (default 25)
 cirrux thread search "<query>" --cursor <cur>          # pagination cursor from the previous response
 ```
@@ -160,6 +177,19 @@ Results exclude trash and junk automatically. Quote the whole query when it cont
 ```bash
 mb=$(cirrux mailbox list --quiet | head -1)
 cirrux thread list "$mb" --label inbox --limit 10
+```
+
+**Find a single email by subject in a specific mailbox and apply a verb:**
+
+```bash
+# Resolve the mailbox UUID (look it up by address, not by guessing).
+mb=$(cirrux mailbox list --json | jq -r '.[] | select(.address == "demo@example.com") | .uuid')
+
+# Scope the search to that mailbox and require it's still in the inbox.
+uuid=$(cirrux email search "subject:\"welcome\" in:inbox" --mailbox-uuid "$mb" --quiet | head -1)
+
+# Apply a verb (archive, trash, spam, untrash, unspam, unarchive, or move).
+cirrux email archive "$uuid"
 ```
 
 **Read the full body of every email in a thread:**
@@ -198,6 +228,22 @@ cirrux email search "from:newsletter@example.com is:unread" --quiet \
   | xargs -I {} cirrux email read {}
 ```
 
+**Prepare a reply draft to an email (the user sends it manually):**
+
+```bash
+parent="<email-uuid>"
+mb=$(cirrux email get "$parent" --json | jq -r '.mailbox_uuid')
+
+cat <<EOF | cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent"
+From: me@example.com
+To: alice@example.com
+Subject: Re: Quarterly review
+In-Reply-To: <$parent>
+
+Thanks Alice — let's circle back next week.
+EOF
+```
+
 ## Tips for agents
 
 - Always inspect `cirrux <command> --help` before guessing flags — the CLI is self-documenting and new flags land there first.
@@ -205,4 +251,5 @@ cirrux email search "from:newsletter@example.com is:unread" --quiet \
 - UUIDs are opaque strings — never try to construct or mutate them.
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), and `email labels add` / `labels remove` for custom labels. Sending, replying, deleting, and snoozing are not yet exposed — say so rather than fabricating commands.
+- **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, and `draft create` / `draft delete` for drafts. Sending drafts and snoozing are not yet exposed — say so rather than fabricating commands.

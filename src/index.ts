@@ -31,6 +31,8 @@ import {
   emailUnspamCommand,
   emailMoveCommand,
 } from './commands/email/transitions.js'
+import { draftCreateCommand } from './commands/draft/create.js'
+import { draftDeleteCommand } from './commands/draft/delete.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
 import { attachmentDownloadCommand } from './commands/attachment/download.js'
 import { whoamiCommand } from './commands/whoami.js'
@@ -272,6 +274,28 @@ emailLabels
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the email UUID (for piping)')
   .action(emailLabelsRemoveCommand)
+
+const draft = program
+  .command('draft')
+  .description('Manage email drafts')
+
+draft
+  .command('create')
+  .description('Create a draft from a raw RFC 5322 MIME message (file or stdin)')
+  .requiredOption('--mailbox-uuid <uuid>', 'Mailbox the draft belongs to')
+  .option('--file <path>', 'Path to a .eml file containing the MIME message (read from stdin if omitted)')
+  .option('--in-reply-to <email-uuid>', 'Link this draft as a reply to an existing email')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new draft UUID (for piping)')
+  .action(draftCreateCommand)
+
+draft
+  .command('delete')
+  .description('Delete a draft')
+  .argument('<uuid>', 'Draft UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted draft UUID (for piping)')
+  .action(draftDeleteCommand)
 
 const attachment = program
   .command('attachment')
