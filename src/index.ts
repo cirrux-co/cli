@@ -33,6 +33,7 @@ import {
 } from './commands/email/transitions.js'
 import { draftCreateCommand } from './commands/draft/create.js'
 import { draftDeleteCommand } from './commands/draft/delete.js'
+import { draftSendCommand } from './commands/draft/send.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
 import { attachmentDownloadCommand } from './commands/attachment/download.js'
 import { whoamiCommand } from './commands/whoami.js'
@@ -296,6 +297,14 @@ draft
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the deleted draft UUID (for piping)')
   .action(draftDeleteCommand)
+
+draft
+  .command('send')
+  .description('Send a draft')
+  .argument('<uuid>', 'Draft UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the sent email UUID (for piping)')
+  .action(draftSendCommand)
 
 const attachment = program
   .command('attachment')
