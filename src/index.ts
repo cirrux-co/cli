@@ -31,7 +31,7 @@ import {
   emailUnspamCommand,
   emailMoveCommand,
 } from './commands/email/transitions.js'
-import { draftCreateCommand } from './commands/draft/create.js'
+import { collectAddress, draftCreateCommand } from './commands/draft/create.js'
 import { draftDeleteCommand } from './commands/draft/delete.js'
 import { draftSendCommand } from './commands/draft/send.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
@@ -282,9 +282,14 @@ const draft = program
 
 draft
   .command('create')
-  .description('Create a draft from a raw RFC 5322 MIME message (file or stdin)')
+  .description('Create a draft from MIME (file/stdin) or markdown with structured headers')
   .requiredOption('--mailbox-uuid <uuid>', 'Mailbox the draft belongs to')
   .option('--file <path>', 'Path to a .eml file containing the MIME message (read from stdin if omitted)')
+  .option('--markdown <path>', 'Path to a markdown file used as the draft body (mutually exclusive with --file)')
+  .option('--subject <subject>', 'Subject line (markdown mode only)')
+  .option('--to <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
+  .option('--cc <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
+  .option('--bcc <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
   .option('--in-reply-to <email-uuid>', 'Link this draft as a reply to an existing email')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the new draft UUID (for piping)')

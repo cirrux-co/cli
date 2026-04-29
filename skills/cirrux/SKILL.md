@@ -118,17 +118,30 @@ Thread-level versions of these verbs (`cirrux thread archive`, `cirrux thread mo
 ### Draft
 
 ```bash
+# MIME mode — caller assembles the full RFC 5322 message
 cirrux draft create --mailbox-uuid <mailbox-uuid> --file message.eml   # create from a .eml file
 cat message.eml | cirrux draft create --mailbox-uuid <mailbox-uuid>    # create from stdin
 cirrux draft create --mailbox-uuid <mailbox-uuid> --file reply.eml --in-reply-to <email-uuid>  # link as a reply
+
+# Markdown mode — caller supplies a markdown body and structured headers
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --subject "Hi" --to alice@example.com
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md \
+  --to "Alice <alice@example.com>" --cc bob@example.com --bcc carol@example.com
+
 cirrux draft delete <draft-uuid>                                       # delete a draft
+cirrux draft send <draft-uuid>                                         # send a draft immediately
 ```
 
-`draft create` accepts a full RFC 5322 MIME message — headers + blank line + body. The `From:` address must be one of the mailbox's configured addresses (or its primary address); the API rejects spoofed senders with 422. Supply `--in-reply-to <email-uuid>` to explicitly link the draft to a parent email — it must belong to the same workspace. The response is the new draft (uuid, headers, body_html, body_text, labels include `draft`).
+`draft create` accepts the body in two mutually-exclusive shapes:
+
+- **`--file` / stdin** — a full RFC 5322 MIME message (headers + blank line + body). The `From:` header must be one of the mailbox's configured addresses (or its primary address); the API rejects spoofed senders with 422.
+- **`--markdown <path>`** — a markdown file used as the draft body. Headers come from `--subject`, `--to`, `--cc`, `--bcc` (each address is repeatable, `Name <addr>` or just `addr`). The backend renders markdown to HTML via Kramdown (defaults), converts to the editor's structured body format, and synthesizes the MIME — `From:` is set to the mailbox's primary address automatically. Bcc is preserved on the draft record but stripped from the rendered MIME, matching webmail compose behavior.
+
+Supply `--in-reply-to <email-uuid>` (in either mode) to link the draft to a parent email — it must belong to the same workspace. The response is the new draft (uuid, headers, body_html, body_text, labels include `draft`).
 
 `draft delete` returns 204 with no body. Deleting an email that isn't a draft returns 422 (`not_a_draft`); deleting a non-existent draft returns 404.
 
-Sending drafts is not yet exposed by the CLI — the user has to send from the webmail UI for now.
+`draft send` requires the `email.send` OAuth scope (separate from `email.write`) — if the CLI was logged in before send was supported, run `cirrux logout && cirrux login` to re-grant. The response is the resulting email (no longer a draft: `sent` label applied, `draft` label removed). The draft must have at least one recipient; sending one with no `To`/`Cc`/`Bcc` returns 422 (`invalid_value`). Sending a non-draft returns 422 (`not_a_draft`); a draft with a future `send_draft_at` already scheduled returns 422 (`already_scheduled`).
 
 ### Attachment
 
@@ -228,13 +241,13 @@ cirrux email search "from:newsletter@example.com is:unread" --quiet \
   | xargs -I {} cirrux email read {}
 ```
 
-**Prepare a reply draft to an email (the user sends it manually):**
+**Compose and send a reply to an email:**
 
 ```bash
 parent="<email-uuid>"
 mb=$(cirrux email get "$parent" --json | jq -r '.mailbox_uuid')
 
-cat <<EOF | cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent"
+draft=$(cat <<EOF | cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" --quiet
 From: me@example.com
 To: alice@example.com
 Subject: Re: Quarterly review
@@ -242,6 +255,32 @@ In-Reply-To: <$parent>
 
 Thanks Alice — let's circle back next week.
 EOF
+)
+
+cirrux draft send "$draft"
+```
+
+Drop the final `cirrux draft send` if you want to leave the draft for the user to review and send themselves.
+
+**Same reply via markdown mode (no MIME assembly required):**
+
+```bash
+parent="<email-uuid>"
+mb=$(cirrux email get "$parent" --json | jq -r '.mailbox_uuid')
+to=$(cirrux email get "$parent" --json | jq -r '.from[0].address')
+
+cat > /tmp/reply.md <<'EOF'
+Thanks Alice — let's **circle back** next week.
+
+A few quick thoughts:
+- The Q1 numbers look solid
+- I'll send the deck on Monday
+EOF
+
+cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
+  --markdown /tmp/reply.md \
+  --subject "Re: Quarterly review" \
+  --to "$to"
 ```
 
 ## Tips for agents
@@ -252,4 +291,4 @@ EOF
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, and `draft create` / `draft delete` for drafts. Sending drafts and snoozing are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, and `draft create` / `draft delete` / `draft send` for drafts. Snoozing is not yet exposed — say so rather than fabricating commands.

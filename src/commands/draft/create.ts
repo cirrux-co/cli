@@ -7,7 +7,36 @@ import { type Draft, ensureCreds, handleDraftError } from './draft-shared.js'
 export interface DraftCreateOptions extends OutputOptions {
   mailboxUuid?: string
   file?: string
+  markdown?: string
+  subject?: string
+  to?: string[]
+  cc?: string[]
+  bcc?: string[]
   inReplyTo?: string
+}
+
+export interface DraftAddress {
+  address: string
+  name?: string
+}
+
+// Commander option collector for repeatable --to/--cc/--bcc flags.
+export function collectAddress(value: string, previous: string[]): string[] {
+  return [...previous, value]
+}
+
+// Accepts `Name <addr>` or just `addr`. Display name parsing is intentionally
+// minimal — angle-bracket form is the standard, anything else is treated as a
+// bare address.
+export function parseAddress(input: string): DraftAddress {
+  const trimmed = input.trim()
+  const match = trimmed.match(/^(.*?)\s*<\s*([^>]+)\s*>$/)
+  if (match) {
+    const name = match[1].trim().replace(/^"|"$/g, '').trim()
+    const address = match[2].trim()
+    return name.length > 0 ? { address, name } : { address }
+  }
+  return { address: trimmed }
 }
 
 export async function readMimeInput(options: DraftCreateOptions): Promise<string> {
@@ -42,13 +71,30 @@ export async function draftCreateCommand(options: DraftCreateOptions): Promise<v
     })
   }
 
-  const mime = await readMimeInput(options)
+  if (options.file && options.markdown) {
+    outputError('--file and --markdown are mutually exclusive.', {
+      ...options,
+      code: ExitCode.USAGE_ERROR,
+      errorType: 'usage_error',
+    })
+  }
 
   const body: Record<string, unknown> = {
     mailbox_uuid: options.mailboxUuid,
-    body_format: 'mime',
-    mime,
   }
+
+  if (options.markdown) {
+    body.body_format = 'markdown'
+    body.markdown = readFileSync(options.markdown, 'utf-8')
+    if (options.subject) body.subject = options.subject
+    if (options.to?.length) body.to = options.to.map(parseAddress)
+    if (options.cc?.length) body.cc = options.cc.map(parseAddress)
+    if (options.bcc?.length) body.bcc = options.bcc.map(parseAddress)
+  } else {
+    body.body_format = 'mime'
+    body.mime = await readMimeInput(options)
+  }
+
   if (options.inReplyTo) {
     body.in_reply_to_email_uuid = options.inReplyTo
   }
