@@ -23,6 +23,11 @@ export class AuthRefreshFailedError extends Error {
   }
 }
 
+function coAuthorHeader(): Record<string, string> {
+  const coAuthor = process.env.CIRRUX_CO_AUTHOR?.trim()
+  return coAuthor ? { 'X-Cirrux-Co-Author': coAuthor } : {}
+}
+
 export async function apiRequest<T>(
   path: string,
   options: {
@@ -34,6 +39,7 @@ export async function apiRequest<T>(
   const url = new URL(path, apiUrl())
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...coAuthorHeader(),
   }
 
   if (options.token) {
@@ -61,7 +67,9 @@ export async function apiRequestRaw(
   } = {},
 ): Promise<{ body: Buffer; contentType: string }> {
   const url = new URL(path, apiUrl())
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = {
+    ...coAuthorHeader(),
+  }
 
   if (options.token) {
     headers['Authorization'] = `Bearer ${options.token}`
@@ -166,7 +174,10 @@ export async function authedRequestVoid(
 ): Promise<void> {
   await withAccessToken(async (token) => {
     const url = new URL(path, apiUrl())
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...coAuthorHeader(),
+    }
     headers['Authorization'] = `Bearer ${token}`
 
     const response = await fetch(url.toString(), {

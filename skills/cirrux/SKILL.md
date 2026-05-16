@@ -25,6 +25,16 @@ cirrux logout
 
 Commands that hit the API fail with exit code `4` (`AUTH_REQUIRED`) when the user is not logged in. Suggest `cirrux login` in that case.
 
+## Attribution
+
+Always set `CIRRUX_CO_AUTHOR=claude` when invoking `cirrux`, on every command. This tags any mutation you make with you as the co-author so the user can see in their activity feed which actions came from you (vs. their own). It's a passive label — it doesn't change behavior or permissions, but skipping it loses the audit trail.
+
+```bash
+CIRRUX_CO_AUTHOR=claude cirrux email archive <uuid>
+```
+
+You can `export CIRRUX_CO_AUTHOR=claude` once at the start of a shell session instead of repeating it per command.
+
 ## Output modes
 
 Every data-producing command supports three output modes:
@@ -196,7 +206,7 @@ cirrux thread list "$mb" --label inbox --limit 10
 
 ```bash
 # Resolve the mailbox UUID (look it up by address, not by guessing).
-mb=$(cirrux mailbox list --json | jq -r '.[] | select(.address == "demo@example.com") | .uuid')
+mb=$(cirrux mailbox list --json | jq -r '.data[] | select(.primary_address == "demo@example.com") | .uuid')
 
 # Scope the search to that mailbox and require it's still in the inbox.
 uuid=$(cirrux email search "subject:\"welcome\" in:inbox" --mailbox-uuid "$mb" --quiet | head -1)

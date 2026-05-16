@@ -6,7 +6,7 @@ import { output, outputError, type OutputOptions } from '../../output.js'
 interface Mailbox {
   object: string
   uuid: string
-  address: string
+  primary_address: string
   created_at: string
   updated_at: string
 }
@@ -26,10 +26,10 @@ export async function mailboxGetCommand(id: string, options: OutputOptions): Pro
     const mailbox = await authedRequest<Mailbox>(`public_api/v1/mailboxes/${encodeURIComponent(id)}`)
 
     const lines = [
-      `UUID:       ${mailbox.uuid}`,
-      `Address:    ${mailbox.address}`,
-      `Created at: ${mailbox.created_at}`,
-      `Updated at: ${mailbox.updated_at}`,
+      `UUID:            ${mailbox.uuid}`,
+      `Primary address: ${mailbox.primary_address}`,
+      `Created at:      ${mailbox.created_at}`,
+      `Updated at:      ${mailbox.updated_at}`,
     ]
 
     output(mailbox as unknown as Record<string, unknown>, {
