@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander'
+import { setExplicitCoAuthor } from './api.js'
 import { loginCommand } from './commands/login.js'
 import { logoutCommand } from './commands/logout.js'
 import { mailboxListCommand } from './commands/mailbox/list.js'
@@ -47,6 +48,13 @@ program
   .name('cirrux')
   .description('Cirrux CLI')
   .version(CLI_VERSION)
+  .option(
+    '--co-author <name>',
+    'Tag mutations with a co-author (overrides CIRRUX_CO_AUTHOR; auto-set to "claude" inside Claude Code)',
+  )
+  .hook('preAction', (thisCommand) => {
+    setExplicitCoAuthor(thisCommand.opts().coAuthor as string | undefined)
+  })
 
 program
   .command('login')

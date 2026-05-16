@@ -23,8 +23,26 @@ export class AuthRefreshFailedError extends Error {
   }
 }
 
+let explicitCoAuthor: string | undefined
+
+export function setExplicitCoAuthor(value: string | undefined): void {
+  explicitCoAuthor = value?.trim() || undefined
+}
+
+export function resolveCoAuthor(
+  env: NodeJS.ProcessEnv = process.env,
+  explicit: string | undefined = explicitCoAuthor,
+): string | undefined {
+  const fromExplicit = explicit?.trim()
+  if (fromExplicit) return fromExplicit
+  const fromEnv = env.CIRRUX_CO_AUTHOR?.trim()
+  if (fromEnv) return fromEnv
+  if (env.CLAUDECODE === '1') return 'claude'
+  return undefined
+}
+
 function coAuthorHeader(): Record<string, string> {
-  const coAuthor = process.env.CIRRUX_CO_AUTHOR?.trim()
+  const coAuthor = resolveCoAuthor()
   return coAuthor ? { 'X-Cirrux-Co-Author': coAuthor } : {}
 }
 

@@ -27,13 +27,15 @@ Commands that hit the API fail with exit code `4` (`AUTH_REQUIRED`) when the use
 
 ## Attribution
 
-Always set `CIRRUX_CO_AUTHOR=claude` when invoking `cirrux`, on every command. This tags any mutation you make with you as the co-author so the user can see in their activity feed which actions came from you (vs. their own). It's a passive label — it doesn't change behavior or permissions, but skipping it loses the audit trail.
+When invoked from inside Claude Code, the CLI auto-detects the `CLAUDECODE=1` environment variable and tags every mutation with co-author `claude` — no action needed from you. This shows up in the user's activity feed so they can tell which actions came from you (vs. their own).
+
+If you need to override (e.g. tagging as a different agent), pass `--co-author <name>` on any command:
 
 ```bash
-CIRRUX_CO_AUTHOR=claude cirrux email archive <uuid>
+cirrux --co-author claude-reviewer email archive <uuid>
 ```
 
-You can `export CIRRUX_CO_AUTHOR=claude` once at the start of a shell session instead of repeating it per command.
+The `CIRRUX_CO_AUTHOR` env var also works as a fallback for non-Claude automation. Order of precedence: `--co-author` flag → `CIRRUX_CO_AUTHOR` env var → auto-detected `claude`.
 
 ## Output modes
 
