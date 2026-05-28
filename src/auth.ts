@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import open from 'open'
 import { apiRequest, apiUrl } from './api.js'
+import { renderErrorPage, renderSuccessPage } from './auth-pages.js'
 import { saveWorkspaceCredentials } from './config.js'
 import { CLI_VERSION } from './version.js'
 
@@ -66,13 +67,13 @@ export async function login(): Promise<void> {
 
       if (authCode) {
         res.writeHead(200, { 'Content-Type': 'text/html' })
-        res.end('<html><body><h1>Login successful!</h1><p>You can close this tab and return to the terminal.</p></body></html>')
+        res.end(renderSuccessPage())
         clearTimeout(timeout)
         server.close()
         resolve(authCode)
       } else {
         res.writeHead(400, { 'Content-Type': 'text/html' })
-        res.end('<html><body><h1>Login failed</h1><p>No authorization code received.</p></body></html>')
+        res.end(renderErrorPage('No authorization code received. Please try again.'))
       }
     })
   })
