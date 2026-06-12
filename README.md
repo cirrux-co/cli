@@ -1,6 +1,6 @@
 # Cirrux CLI
 
-Command-line interface for [Cirrux](https://cirrux.co). Browse mailboxes, read threads and emails, download attachments — scriptable from the shell or from an AI coding assistant.
+Command-line interface for [Cirrux](https://cirrux.co). Browse mailboxes, read threads and emails, download attachments, and manage Drive files — scriptable from the shell or from an AI coding assistant.
 
 ## Install
 
@@ -15,6 +15,35 @@ cirrux login            # browser-based OAuth
 cirrux whoami           # confirm which user and workspace you're on
 cirrux mailbox list     # list your mailboxes
 ```
+
+### Logging in on a headless or remote machine
+
+`cirrux login` opens a browser and waits for a redirect to a local port — which works on your own
+machine, but not on a server you've SSH'd into (the browser would be on your laptop, not the server).
+For those cases use the device flow:
+
+```bash
+cirrux login --no-browser
+```
+
+It prints a verification URL and a short code:
+
+```
+To sign in, open this URL in a browser on any device:
+
+    https://auth.cirrux.co/device
+
+and enter the code:
+
+    WXYZ-1234
+
+Waiting for you to authorize...
+```
+
+Open the URL on any device (e.g. your laptop), sign in, enter the code, and pick a workspace. The CLI
+polls in the background and finishes automatically once you approve — no inbound connection to the
+remote machine is needed. The CLI also falls back to this flow automatically when it detects a headless
+environment (an SSH session, or no display server).
 
 ## Usage
 
@@ -41,11 +70,35 @@ cirrux email flag <email-uuid>
 cirrux attachment download <attachment-uuid> > attachment.pdf
 ```
 
+### Drive
+
+```bash
+# List the root, then list a folder
+cirrux drive list
+cirrux drive list <folder-uuid>
+
+# File metadata
+cirrux drive get <file-uuid>
+
+# Download a file (raw bytes to stdout — pipe to a file)
+cirrux drive download <file-uuid> > report.pdf
+
+# Upload a file (100 MB max); omit the folder to land in the root
+cirrux drive upload <folder-uuid> --file ./report.pdf
+cirrux drive upload --file ./notes.txt --name renamed.txt --content-type text/plain
+
+# Trash (reversible) or permanently delete a file
+cirrux drive trash <file-uuid>
+cirrux drive delete <file-uuid>
+```
+
+Drive uploads and downloads go through a server-side route that handles all encryption transparently — files stay fully interoperable with the web client. Existing CLI users must re-login (`cirrux login`) once to pick up the new Drive OAuth scopes.
+
 ### Commands
 
 | Command | What it does |
 |---------|--------------|
-| `cirrux login` / `cirrux logout` / `cirrux whoami` | Browser OAuth, sign out, show current user + workspace |
+| `cirrux login` / `cirrux logout` / `cirrux whoami` | Browser OAuth (`--no-browser` for headless/remote machines), sign out, show current user + workspace |
 | `cirrux mailbox list` | List mailboxes you have access to |
 | `cirrux mailbox get <mailbox-uuid>` | Mailbox metadata |
 | `cirrux thread list <mailbox-uuid>` | List threads in a mailbox (`--label`, `--limit`, `--cursor`) |
@@ -58,6 +111,12 @@ cirrux attachment download <attachment-uuid> > attachment.pdf
 | `cirrux email flag <email-uuid>` / `cirrux email unflag <email-uuid>` | Flag (star) or unflag an email |
 | `cirrux attachment get <attachment-uuid>` | Attachment metadata |
 | `cirrux attachment download <attachment-uuid>` | Raw bytes to stdout (use `--json` for base64url) |
+| `cirrux drive list [folder-uuid]` | List folders and files in a folder (omit for the root) |
+| `cirrux drive get <file-uuid>` | File metadata |
+| `cirrux drive download <file-uuid>` | Raw bytes to stdout (use `--json` for base64url) |
+| `cirrux drive upload [folder-uuid] --file <path>` | Upload a file, 100 MB max (`--name`, `--content-type`) |
+| `cirrux drive trash <file-uuid>` | Move a file to the trash (reversible, idempotent) |
+| `cirrux drive delete <file-uuid>` | Permanently delete a file (idempotent) |
 | `cirrux skill install` / `cirrux skill print` | Install or preview the bundled agent skill |
 
 Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `in:inbox`/`in:sent`/`in:drafts`/`in:archive`/`in:snoozed`/`in:starred`, `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.

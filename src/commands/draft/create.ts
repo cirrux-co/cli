@@ -13,6 +13,9 @@ export interface DraftCreateOptions extends OutputOptions {
   cc?: string[]
   bcc?: string[]
   inReplyTo?: string
+  // Commander's `--no-quote-original` negation: defaults to true, set to false
+  // when the flag is passed. Only meaningful for a markdown reply.
+  quoteOriginal?: boolean
 }
 
 export interface DraftAddress {
@@ -90,6 +93,9 @@ export async function draftCreateCommand(options: DraftCreateOptions): Promise<v
     if (options.to?.length) body.to = options.to.map(parseAddress)
     if (options.cc?.length) body.cc = options.cc.map(parseAddress)
     if (options.bcc?.length) body.bcc = options.bcc.map(parseAddress)
+    // Default is to quote (server-side); only send the opt-out. Quoting only
+    // applies when this is a reply (--in-reply-to).
+    if (options.quoteOriginal === false) body.quote_original = false
   } else {
     body.body_format = 'mime'
     body.mime = await readMimeInput(options)

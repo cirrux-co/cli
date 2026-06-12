@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { ensureConfigDir } from './config.js'
 
 const CACHE_FILE = join(homedir(), '.cirrux', 'update-check.json')
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
@@ -20,6 +21,7 @@ function readCache(): UpdateCache | null {
 }
 
 function writeCache(cache: UpdateCache) {
+  ensureConfigDir()
   writeFileSync(CACHE_FILE, JSON.stringify(cache))
 }
 

@@ -20,7 +20,7 @@ interface CredentialsFile {
   workspaces: Record<string, WorkspaceCredentials>
 }
 
-function ensureConfigDir() {
+export function ensureConfigDir() {
   if (!existsSync(CONFIG_DIR)) {
     mkdirSync(CONFIG_DIR, { recursive: true })
   }

@@ -65,6 +65,7 @@ program
 program
   .command('login')
   .description('Authenticate with Cirrux via browser')
+  .option('--no-browser', 'Sign in without a local browser (for headless/remote machines)')
   .action(loginCommand)
 
 program
@@ -305,6 +306,10 @@ draft
   .option('--cc <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
   .option('--bcc <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
   .option('--in-reply-to <email-uuid>', 'Link this draft as a reply to an existing email')
+  .option(
+    '--no-quote-original',
+    'Do not quote the original email below your reply (markdown replies quote it by default)',
+  )
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the new draft UUID (for piping)')
   .action(draftCreateCommand)
