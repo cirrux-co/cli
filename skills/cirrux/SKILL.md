@@ -1,11 +1,11 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments) or Drive files (list, download, upload, trash, delete) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
 
-`cirrux` is the command-line interface for [Cirrux](https://cirrux.co) email. Use it to authenticate, browse mailboxes and threads, read individual emails, and download attachments.
+`cirrux` is the command-line interface for [Cirrux](https://cirrux.co) email. Use it to authenticate, browse mailboxes and threads, read individual emails, download attachments, and manage Drive files.
 
 ## Prerequisite: check it's installed
 
@@ -163,6 +163,25 @@ cirrux attachment download <attachment-uuid> > file    # raw bytes to stdout
 cirrux attachment download <attachment-uuid> --json    # JSON with base64url-encoded data
 ```
 
+### Drive
+
+```bash
+cirrux drive list                                  # list folders + files at the root
+cirrux drive list <folder-uuid>                    # list folders + files inside one folder (single level)
+cirrux drive get <file-uuid>                        # file metadata (name, content-type, size, upload_status)
+cirrux drive download <file-uuid> > file            # raw bytes to stdout
+cirrux drive download <file-uuid> --json            # JSON with base64url-encoded data
+cirrux drive upload --file ./report.pdf             # upload to the root (filename from the path)
+cirrux drive upload <folder-uuid> --file ./a.png    # upload into a folder
+cirrux drive upload --file ./a.bin --name out.bin --content-type application/octet-stream
+cirrux drive trash <file-uuid>                      # move a file to the trash (reversible, idempotent)
+cirrux drive delete <file-uuid>                     # delete a file (idempotent)
+```
+
+`cirrux drive download` writes raw bytes to stdout (like `attachment download`) — pipe to a file with `> out`. Listing is **single-level, folder by folder** — folders print with a trailing `/`, then files; there's no recursive tree. Upload and download are capped at **100 MB** per file (the CLI handles individual files; larger files belong in the web app), and the backend handles all encryption/decryption — you only ever move plaintext.
+
+`drive trash` / `drive delete` operate on **files only** (folders are managed in the web app) and are idempotent. Drive needs the `drive.read` / `drive.create` / `drive.delete` OAuth scopes; if the CLI was logged in before Drive support, a Drive command will fail with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
+
 ## Search
 
 `cirrux thread search "<query>"` and `cirrux email search "<query>"` both hit the same search engine — the difference is the grouping of results. Use `thread search` when the user cares about conversations, `email search` when they care about individual messages (e.g. "find every email with an attachment").
@@ -235,6 +254,16 @@ cirrux email get <email-uuid> --json \
     done
 ```
 
+**Download every file in a Drive folder to the current directory:**
+
+```bash
+cirrux drive list <folder-uuid> --json \
+  | jq -r '.files[] | "\(.uuid)\t\(.name)"' \
+  | while IFS=$'\t' read uuid name; do
+      cirrux drive download "$uuid" > "$name"
+    done
+```
+
 **Find unread mail from a specific sender and print each body:**
 
 ```bash
@@ -303,4 +332,4 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, and `draft create` / `draft delete` / `draft send` for drafts. Snoozing is not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `draft create` / `draft delete` / `draft send` for drafts, and `drive upload` / `trash` / `delete` for Drive files. Snoozing, Drive folder management, sharing, move and rename are not yet exposed — say so rather than fabricating commands.

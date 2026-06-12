@@ -37,6 +37,12 @@ import { draftDeleteCommand } from './commands/draft/delete.js'
 import { draftSendCommand } from './commands/draft/send.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
 import { attachmentDownloadCommand } from './commands/attachment/download.js'
+import { driveListCommand } from './commands/drive/list.js'
+import { driveGetCommand } from './commands/drive/get.js'
+import { driveDownloadCommand } from './commands/drive/download.js'
+import { driveUploadCommand } from './commands/drive/upload.js'
+import { driveTrashCommand } from './commands/drive/trash.js'
+import { driveDeleteCommand } from './commands/drive/delete.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { installSkillCommand, printSkillCommand } from './commands/install-skill.js'
 import { checkForUpdate } from './update-check.js'
@@ -338,6 +344,61 @@ attachment
   .option('--json', 'Output as JSON (base64url-encoded data)')
   .option('--quiet', 'Output only the base64url-encoded data (for piping)')
   .action(attachmentDownloadCommand)
+
+const drive = program
+  .command('drive')
+  .description('Manage Drive folders and files')
+
+drive
+  .command('list')
+  .description('List folders and files in a folder (or the root)')
+  .argument('[folder-uuid]', 'Folder UUID to list (omit for the root)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only folder/file UUIDs, one per line (for piping)')
+  .action(driveListCommand)
+
+drive
+  .command('get')
+  .description('Get metadata for a file')
+  .argument('<uuid>', 'Drive file UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the file UUID (for piping)')
+  .action(driveGetCommand)
+
+drive
+  .command('download')
+  .description('Download a file (writes raw bytes to stdout — pipe to a file with `> out`)')
+  .argument('<uuid>', 'Drive file UUID')
+  .option('--json', 'Output as JSON (base64url-encoded data)')
+  .option('--quiet', 'Output only the base64url-encoded data (for piping)')
+  .action(driveDownloadCommand)
+
+drive
+  .command('upload')
+  .description('Upload a file (100 MB max)')
+  .argument('[folder-uuid]', 'Destination folder UUID (omit to upload to the root)')
+  .requiredOption('--file <path>', 'Path to the file to upload')
+  .option('--name <name>', 'Override the stored filename (defaults to the file basename)')
+  .option('--content-type <type>', 'MIME type (defaults to application/octet-stream)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new file UUID (for piping)')
+  .action(driveUploadCommand)
+
+drive
+  .command('trash')
+  .description('Move a file to the trash (reversible, idempotent)')
+  .argument('<uuid>', 'Drive file UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the file UUID (for piping)')
+  .action(driveTrashCommand)
+
+drive
+  .command('delete')
+  .description('Delete a file (idempotent)')
+  .argument('<uuid>', 'Drive file UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted file UUID (for piping)')
+  .action(driveDeleteCommand)
 
 const skill = program
   .command('skill')
