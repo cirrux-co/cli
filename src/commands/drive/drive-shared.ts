@@ -26,6 +26,28 @@ export interface DriveFolder {
 /** The simple upload/download route caps files at 100 MB (server-enforced). */
 export const DRIVE_SIMPLE_ROUTE_MAX_BYTES = 100 * 1024 * 1024
 
+export type MoveDestination =
+  | { ok: true; value: string | null }
+  | { ok: false; message: string }
+
+/**
+ * Resolve a move destination from `--to`/`--root`. They are mutually
+ * exclusive and exactly one is required; `--root` resolves to null (the root),
+ * `--to` to the target folder UUID.
+ */
+export function resolveMoveDestination(options: { to?: string; root?: boolean }): MoveDestination {
+  if (options.root && options.to) {
+    return { ok: false, message: 'Use either --to <folder-uuid> or --root, not both.' }
+  }
+  if (!options.root && !options.to) {
+    return {
+      ok: false,
+      message: 'Specify a destination with --to <folder-uuid> (or --root to move to the root).',
+    }
+  }
+  return { ok: true, value: options.root ? null : (options.to as string) }
+}
+
 /** Exit early with a clear message when there are no stored credentials. */
 export function requireCredentials(options: OutputOptions): void {
   if (!getActiveCredentials()) {
@@ -79,6 +101,14 @@ export function handleDriveError(
         ...options,
         code: ExitCode.USAGE_ERROR,
         errorType: 'file_too_large',
+      })
+    }
+
+    if (error.status === 422 && error.body.includes('invalid_move')) {
+      outputError(`${context.action} failed: a folder cannot be moved into itself or one of its own subfolders.`, {
+        ...options,
+        code: ExitCode.USAGE_ERROR,
+        errorType: 'invalid_move',
       })
     }
   }

@@ -43,6 +43,14 @@ import { driveDownloadCommand } from './commands/drive/download.js'
 import { driveUploadCommand } from './commands/drive/upload.js'
 import { driveTrashCommand } from './commands/drive/trash.js'
 import { driveDeleteCommand } from './commands/drive/delete.js'
+import { driveRenameCommand } from './commands/drive/rename.js'
+import { driveMoveCommand } from './commands/drive/move.js'
+import { driveFolderCreateCommand } from './commands/drive/folder/create.js'
+import { driveFolderGetCommand } from './commands/drive/folder/get.js'
+import { driveFolderRenameCommand } from './commands/drive/folder/rename.js'
+import { driveFolderMoveCommand } from './commands/drive/folder/move.js'
+import { driveFolderTrashCommand } from './commands/drive/folder/trash.js'
+import { driveFolderDeleteCommand } from './commands/drive/folder/delete.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { installSkillCommand, printSkillCommand } from './commands/install-skill.js'
 import { checkForUpdate } from './update-check.js'
@@ -404,6 +412,82 @@ drive
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the deleted file UUID (for piping)')
   .action(driveDeleteCommand)
+
+drive
+  .command('rename')
+  .description('Rename a file')
+  .argument('<uuid>', 'Drive file UUID')
+  .argument('<new-name>', 'New filename')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the file UUID (for piping)')
+  .action(driveRenameCommand)
+
+drive
+  .command('move')
+  .description('Move a file into another folder (or to the root)')
+  .argument('<uuid>', 'Drive file UUID')
+  .option('--to <folder-uuid>', 'Destination folder UUID')
+  .option('--root', 'Move the file to the root')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the file UUID (for piping)')
+  .action(driveMoveCommand)
+
+const driveFolder = drive
+  .command('folder')
+  .description('Manage Drive folders')
+
+driveFolder
+  .command('create')
+  .description('Create a folder (at the root, or inside --parent)')
+  .requiredOption('--name <name>', 'Folder name')
+  .option('--parent <folder-uuid>', 'Parent folder UUID (omit to create at the root)')
+  .option('--color <color>', 'Folder color')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new folder UUID (for piping)')
+  .action(driveFolderCreateCommand)
+
+driveFolder
+  .command('get')
+  .description('Get metadata for a folder')
+  .argument('<uuid>', 'Drive folder UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the folder UUID (for piping)')
+  .action(driveFolderGetCommand)
+
+driveFolder
+  .command('rename')
+  .description('Rename a folder')
+  .argument('<uuid>', 'Drive folder UUID')
+  .argument('<new-name>', 'New folder name')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the folder UUID (for piping)')
+  .action(driveFolderRenameCommand)
+
+driveFolder
+  .command('move')
+  .description('Move a folder under another folder (or to the root)')
+  .argument('<uuid>', 'Drive folder UUID')
+  .option('--to <folder-uuid>', 'Destination parent folder UUID')
+  .option('--root', 'Move the folder to the root')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the folder UUID (for piping)')
+  .action(driveFolderMoveCommand)
+
+driveFolder
+  .command('trash')
+  .description('Move a folder to the trash (reversible, idempotent)')
+  .argument('<uuid>', 'Drive folder UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the folder UUID (for piping)')
+  .action(driveFolderTrashCommand)
+
+driveFolder
+  .command('delete')
+  .description('Delete a folder (idempotent)')
+  .argument('<uuid>', 'Drive folder UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted folder UUID (for piping)')
+  .action(driveFolderDeleteCommand)
 
 const skill = program
   .command('skill')

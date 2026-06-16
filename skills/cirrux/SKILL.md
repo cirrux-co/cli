@@ -176,11 +176,23 @@ cirrux drive upload <folder-uuid> --file ./a.png    # upload into a folder
 cirrux drive upload --file ./a.bin --name out.bin --content-type application/octet-stream
 cirrux drive trash <file-uuid>                      # move a file to the trash (reversible, idempotent)
 cirrux drive delete <file-uuid>                     # delete a file (idempotent)
+cirrux drive rename <file-uuid> new-name.pdf        # rename a file
+cirrux drive move <file-uuid> --to <folder-uuid>    # move a file into a folder
+cirrux drive move <file-uuid> --root                # move a file back to the root
+
+cirrux drive folder create --name Reports           # create a folder at the root
+cirrux drive folder create --name Q1 --parent <folder-uuid>   # create inside a folder
+cirrux drive folder get <folder-uuid>               # folder metadata
+cirrux drive folder rename <folder-uuid> Archive    # rename a folder
+cirrux drive folder move <folder-uuid> --to <parent-uuid>     # move a folder under another
+cirrux drive folder move <folder-uuid> --root       # move a folder to the root
+cirrux drive folder trash <folder-uuid>             # move a folder to the trash (reversible, idempotent)
+cirrux drive folder delete <folder-uuid>            # delete a folder (idempotent)
 ```
 
 `cirrux drive download` writes raw bytes to stdout (like `attachment download`) — pipe to a file with `> out`. Listing is **single-level, folder by folder** — folders print with a trailing `/`, then files; there's no recursive tree. Upload and download are capped at **100 MB** per file (the CLI handles individual files; larger files belong in the web app), and the backend handles all encryption/decryption — you only ever move plaintext.
 
-`drive trash` / `drive delete` operate on **files only** (folders are managed in the web app) and are idempotent. Drive needs the `drive.read` / `drive.create` / `drive.delete` OAuth scopes; if the CLI was logged in before Drive support, a Drive command will fail with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
+`drive trash` / `drive delete` and `drive rename` / `drive move` operate on **files**; the matching folder operations live under the `drive folder` noun group (`create` / `get` / `rename` / `move` / `trash` / `delete`). All are idempotent where it makes sense. Folder `trash` does **not** cascade to its contents (they stay visible under a Trash view), mirroring file trash. Moving a folder into itself or one of its own subfolders fails with exit code `2` (`invalid_move`). Drive needs the `drive.read` / `drive.create` / `drive.update` / `drive.delete` OAuth scopes — rename/move require `drive.update`; if the CLI was logged in before these were added, a Drive command will fail with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
 
 ## Search
 
@@ -332,4 +344,4 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `draft create` / `draft delete` / `draft send` for drafts, and `drive upload` / `trash` / `delete` for Drive files. Snoozing, Drive folder management, sharing, move and rename are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `trash` / `delete` / `rename` / `move` for files and `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders. Snoozing and Drive sharing are not yet exposed — say so rather than fabricating commands.
