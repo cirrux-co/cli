@@ -80,10 +80,12 @@ cirrux drive list <folder-uuid>
 # File metadata
 cirrux drive get <file-uuid>
 
-# Download a file (raw bytes to stdout — pipe to a file)
+# Download a file (decrypted locally; raw bytes to stdout — pipe to a file)
 cirrux drive download <file-uuid> > report.pdf
+# ...or stream straight to a path (recommended for large files)
+cirrux drive download <file-uuid> --output report.pdf
 
-# Upload a file (100 MB max); omit the folder to land in the root
+# Upload a file (2 GB max); omit the folder to land in the root
 cirrux drive upload <folder-uuid> --file ./report.pdf
 cirrux drive upload --file ./notes.txt --name renamed.txt --content-type text/plain
 
@@ -92,7 +94,7 @@ cirrux drive trash <file-uuid>
 cirrux drive delete <file-uuid>
 ```
 
-Drive uploads and downloads go through a server-side route that handles all encryption transparently — files stay fully interoperable with the web client. Existing CLI users must re-login (`cirrux login`) once to pick up the new Drive OAuth scopes.
+Drive uploads and downloads are end-to-end encrypted: the CLI encrypts and decrypts file contents locally (AES-256-GCM, chunked) and streams ciphertext straight to/from storage, so files stay fully interoperable with the web client and large files never buffer in memory. Existing CLI users must re-login (`cirrux login`) once to pick up the new Drive OAuth scopes.
 
 ### Commands
 
@@ -113,8 +115,8 @@ Drive uploads and downloads go through a server-side route that handles all encr
 | `cirrux attachment download <attachment-uuid>` | Raw bytes to stdout (use `--json` for base64url) |
 | `cirrux drive list [folder-uuid]` | List folders and files in a folder (omit for the root) |
 | `cirrux drive get <file-uuid>` | File metadata |
-| `cirrux drive download <file-uuid>` | Raw bytes to stdout (use `--json` for base64url) |
-| `cirrux drive upload [folder-uuid] --file <path>` | Upload a file, 100 MB max (`--name`, `--content-type`) |
+| `cirrux drive download <file-uuid>` | Decrypt locally; raw bytes to stdout (`--output <path>` to stream to a file, `--json` for base64url) |
+| `cirrux drive upload [folder-uuid] --file <path>` | Encrypt locally and upload, 2 GB max (`--name`, `--content-type`) |
 | `cirrux drive trash <file-uuid>` | Move a file to the trash (reversible, idempotent) |
 | `cirrux drive delete <file-uuid>` | Permanently delete a file (idempotent) |
 | `cirrux skill install` / `cirrux skill print` | Install or preview the bundled agent skill |

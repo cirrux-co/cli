@@ -1,0 +1,8 @@
+{
+  "producer": "ruby",
+  "file_uuid": "11111111-2222-3333-4444-555555555555",
+  "data_key_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+  "chunk_size": 16,
+  "plaintext_base64": "VGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIHRoZSBsYXp5IGRvZy4gMDEyMzQ1Njc4OQ==",
+  "object_base64": "Q1hEUlYyAAABARAAAAAAAAuTVGVk160EVqqZxADF4W82nhv5cxOyc7VkozoU7+ygN3vBLh+4PyO5B/s/bNRNz50eaZfbHUoHGQh9pg85WsU90qlBqkEXKqPqa4agqVj8dczisNk20Eo04GQzCrnHaOYwExEpjz6HgIh0EhnzIRvr9DRE7aXxBc/ySPBnenmat1b8riZen/OyIfv+4Tldq7aYqpC1Hgv5F1HgaBsTXSH74bkmVIXX"
+}

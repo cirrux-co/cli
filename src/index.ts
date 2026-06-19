@@ -380,15 +380,16 @@ drive
 
 drive
   .command('download')
-  .description('Download a file (writes raw bytes to stdout — pipe to a file with `> out`)')
+  .description('Download a file (decrypts locally; writes raw bytes to stdout — pipe with `> out` or use --output)')
   .argument('<uuid>', 'Drive file UUID')
+  .option('--output <path>', 'Write the decrypted file to this path (streamed; recommended for large files)')
   .option('--json', 'Output as JSON (base64url-encoded data)')
   .option('--quiet', 'Output only the base64url-encoded data (for piping)')
   .action(driveDownloadCommand)
 
 drive
   .command('upload')
-  .description('Upload a file (100 MB max)')
+  .description('Upload a file (encrypts locally; 2 GB max)')
   .argument('[folder-uuid]', 'Destination folder UUID (omit to upload to the root)')
   .requiredOption('--file <path>', 'Path to the file to upload')
   .option('--name <name>', 'Override the stored filename (defaults to the file basename)')

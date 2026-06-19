@@ -170,6 +170,7 @@ cirrux drive list                                  # list folders + files at the
 cirrux drive list <folder-uuid>                    # list folders + files inside one folder (single level)
 cirrux drive get <file-uuid>                        # file metadata (name, content-type, size, upload_status)
 cirrux drive download <file-uuid> > file            # raw bytes to stdout
+cirrux drive download <file-uuid> --output file     # stream to a path (best for large files)
 cirrux drive download <file-uuid> --json            # JSON with base64url-encoded data
 cirrux drive upload --file ./report.pdf             # upload to the root (filename from the path)
 cirrux drive upload <folder-uuid> --file ./a.png    # upload into a folder
@@ -190,9 +191,9 @@ cirrux drive folder trash <folder-uuid>             # move a folder to the trash
 cirrux drive folder delete <folder-uuid>            # delete a folder (idempotent)
 ```
 
-`cirrux drive download` writes raw bytes to stdout (like `attachment download`) — pipe to a file with `> out`. Listing is **single-level, folder by folder** — folders print with a trailing `/`, then files; there's no recursive tree. Upload and download are capped at **100 MB** per file (the CLI handles individual files; larger files belong in the web app), and the backend handles all encryption/decryption — you only ever move plaintext.
+`cirrux drive download` writes raw bytes to stdout (like `attachment download`) — pipe to a file with `> out`, or use `--output <path>` to stream straight to a file (preferred for large files). Listing is **single-level, folder by folder** — folders print with a trailing `/`, then files; there's no recursive tree. Upload and download are capped at **2 GB** per file. File contents are end-to-end encrypted: the CLI encrypts and decrypts locally (AES-256-GCM, chunked) and streams ciphertext directly to/from storage, so large files never buffer in memory and stay interoperable with the web app.
 
-`drive trash` / `drive delete` and `drive rename` / `drive move` operate on **files**; the matching folder operations live under the `drive folder` noun group (`create` / `get` / `rename` / `move` / `trash` / `delete`). All are idempotent where it makes sense. Folder `trash` does **not** cascade to its contents (they stay visible under a Trash view), mirroring file trash. Moving a folder into itself or one of its own subfolders fails with exit code `2` (`invalid_move`). Drive needs the `drive.read` / `drive.create` / `drive.update` / `drive.delete` OAuth scopes — rename/move require `drive.update`; if the CLI was logged in before these were added, a Drive command will fail with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
+`drive trash` / `drive delete` and `drive rename` / `drive move` operate on **files**; the matching folder operations live under the `drive folder` noun group (`create` / `get` / `rename` / `move` / `trash` / `delete`). All are idempotent where it makes sense. Folder `trash` does **not** cascade to its contents (they stay visible under a Trash view), mirroring file trash. Moving a folder into itself or one of its own subfolders fails with exit code `2` (`invalid_move`). Names must be unique within a folder (Drive behaves like a filesystem): an `upload`, `rename`, `move`, or folder `create` that would collide with an existing live item in the destination fails with exit code `5` (`name_taken`) — retry with a different name (`--name` on upload, or a new name argument). A duplicate of a **trashed** item is fine; only live items conflict. Drive needs the `drive.read` / `drive.create` / `drive.update` / `drive.delete` OAuth scopes — rename/move require `drive.update`; if the CLI was logged in before these were added, a Drive command will fail with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
 
 ## Search
 

@@ -216,3 +216,48 @@ export async function authedRequestRaw(
 ): Promise<{ body: Buffer; contentType: string }> {
   return withAccessToken((token) => apiRequestRaw(path, { token }))
 }
+
+// --- Direct S3 transfers (presigned URLs) ---
+//
+// Drive's chunked multipart flow PUTs encrypted chunks to, and GETs ciphertext
+// ranges from, S3 presigned URLs directly — bypassing our API (no auth header,
+// not the API base URL) and the ingress body-size limit. These take a full URL.
+
+/** PUT an encrypted chunk to a presigned S3 part URL; returns the part's ETag. */
+export async function putToPresignedUrl(url: string, body: Buffer): Promise<string> {
+  // Copy into a fresh ArrayBuffer: a Node Buffer's backing store is typed
+  // ArrayBufferLike, which fetch's BodyInit rejects (the SharedArrayBuffer-vs-
+  // ArrayBuffer mismatch). The copy is cheap at chunk sizes.
+  const payload = new ArrayBuffer(body.byteLength)
+  new Uint8Array(payload).set(body)
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Length': String(body.byteLength) },
+    body: payload,
+  })
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text())
+  }
+
+  const etag = response.headers.get('etag')
+  if (!etag) {
+    throw new Error('S3 did not return an ETag for the uploaded part.')
+  }
+  return etag
+}
+
+/** GET a byte range [start, end) from a presigned S3 URL. */
+export async function getRangeFromPresignedUrl(url: string, start: number, end: number): Promise<Buffer> {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { Range: `bytes=${start}-${end - 1}` },
+  })
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text())
+  }
+
+  return Buffer.from(await response.arrayBuffer())
+}

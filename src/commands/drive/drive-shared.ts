@@ -23,8 +23,8 @@ export interface DriveFolder {
   color: string | null
 }
 
-/** The simple upload/download route caps files at 100 MB (server-enforced). */
-export const DRIVE_SIMPLE_ROUTE_MAX_BYTES = 100 * 1024 * 1024
+/** The chunked multipart route caps files at 2 GiB (server-enforced). */
+export const DRIVE_MAX_BYTES = 2 * 1024 * 1024 * 1024
 
 export type MoveDestination =
   | { ok: true; value: string | null }
@@ -96,11 +96,19 @@ export function handleDriveError(
       })
     }
 
-    if (error.status === 413) {
-      outputError(`${context.action} failed: file is too large for this route (100 MB max). Use the web app for larger files.`, {
+    if (error.status === 413 || (error.status === 422 && error.body.includes('file_too_large'))) {
+      outputError(`${context.action} failed: file is too large (2 GB max).`, {
         ...options,
         code: ExitCode.USAGE_ERROR,
         errorType: 'file_too_large',
+      })
+    }
+
+    if (error.status === 422 && error.body.includes('storage_limit_exceeded')) {
+      outputError(`${context.action} failed: the workspace storage limit has been reached.`, {
+        ...options,
+        code: ExitCode.USAGE_ERROR,
+        errorType: 'storage_limit_exceeded',
       })
     }
 
@@ -109,6 +117,15 @@ export function handleDriveError(
         ...options,
         code: ExitCode.USAGE_ERROR,
         errorType: 'invalid_move',
+      })
+    }
+
+    if (error.status === 422 && error.body.includes('name_taken')) {
+      outputError(`${context.action} failed: a file or folder with that name already exists in this folder.`, {
+        ...options,
+        code: ExitCode.CONFLICT,
+        errorType: 'name_taken',
+        hint: 'Choose a different name and try again.',
       })
     }
   }
