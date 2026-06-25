@@ -38,6 +38,7 @@ Go beyond 0/1. Use the shared constants from `src/exit-codes.ts`:
 | 3    | `NOT_FOUND`        | Resource not found             |
 | 4    | `AUTH_REQUIRED`    | Not logged in / permission denied |
 | 5    | `CONFLICT`         | Resource already exists        |
+| 6    | `RATE_LIMITED`     | Rate limited, retries exhausted |
 
 ## 4. Non-interactive by default
 

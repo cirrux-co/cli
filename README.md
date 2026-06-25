@@ -94,44 +94,46 @@ cirrux drive trash <file-uuid>
 cirrux drive delete <file-uuid>
 ```
 
-Drive uploads and downloads are end-to-end encrypted: the CLI encrypts and decrypts file contents locally (AES-256-GCM, chunked) and streams ciphertext straight to/from storage, so files stay fully interoperable with the web client and large files never buffer in memory. Existing CLI users must re-login (`cirrux login`) once to pick up the new Drive OAuth scopes.
-
 ### Commands
 
-| Command | What it does |
-|---------|--------------|
-| `cirrux login` / `cirrux logout` / `cirrux whoami` | Browser OAuth (`--no-browser` for headless/remote machines), sign out, show current user + workspace |
-| `cirrux mailbox list` | List mailboxes you have access to |
-| `cirrux mailbox get <mailbox-uuid>` | Mailbox metadata |
-| `cirrux thread list <mailbox-uuid>` | List threads in a mailbox (`--label`, `--limit`, `--cursor`) |
-| `cirrux thread get <thread-uuid>` | Thread with all non-deleted emails |
-| `cirrux thread search <query>` | Search threads across your mailboxes (`--mailbox-uuid`, `--limit`, `--cursor`) |
-| `cirrux email get <email-uuid>` | Email metadata |
-| `cirrux email content <email-uuid> body\|raw` | Rendered HTML body or full MIME |
-| `cirrux email search <query>` | Search individual emails across your mailboxes |
-| `cirrux email read <email-uuid>` / `cirrux email unread <email-uuid>` | Mark an email as read or unread |
-| `cirrux email flag <email-uuid>` / `cirrux email unflag <email-uuid>` | Flag (star) or unflag an email |
-| `cirrux attachment get <attachment-uuid>` | Attachment metadata |
-| `cirrux attachment download <attachment-uuid>` | Raw bytes to stdout (use `--json` for base64url) |
-| `cirrux drive list [folder-uuid]` | List folders and files in a folder (omit for the root) |
-| `cirrux drive get <file-uuid>` | File metadata |
-| `cirrux drive download <file-uuid>` | Decrypt locally; raw bytes to stdout (`--output <path>` to stream to a file, `--json` for base64url) |
-| `cirrux drive upload [folder-uuid] --file <path>` | Encrypt locally and upload, 2 GB max (`--name`, `--content-type`) |
-| `cirrux drive trash <file-uuid>` | Move a file to the trash (reversible, idempotent) |
-| `cirrux drive delete <file-uuid>` | Permanently delete a file (idempotent) |
-| `cirrux skill install` / `cirrux skill print` | Install or preview the bundled agent skill |
+| Command                                                               | What it does                                                                                         |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `cirrux login` / `cirrux logout` / `cirrux whoami`                    | Browser OAuth (`--no-browser` for headless/remote machines), sign out, show current user + workspace |
+| `cirrux mailbox list`                                                 | List mailboxes you have access to                                                                    |
+| `cirrux mailbox get <mailbox-uuid>`                                   | Mailbox metadata                                                                                     |
+| `cirrux thread list <mailbox-uuid>`                                   | List threads in a mailbox (`--label`, `--limit`, `--cursor`)                                         |
+| `cirrux thread get <thread-uuid>`                                     | Thread with all non-deleted emails                                                                   |
+| `cirrux thread search <query>`                                        | Search threads across your mailboxes (`--mailbox-uuid`, `--limit`, `--cursor`)                       |
+| `cirrux email get <email-uuid>`                                       | Email metadata                                                                                       |
+| `cirrux email content <email-uuid> body\|raw`                         | Rendered HTML body or full MIME                                                                      |
+| `cirrux email search <query>`                                         | Search individual emails across your mailboxes                                                       |
+| `cirrux email read <email-uuid>` / `cirrux email unread <email-uuid>` | Mark an email as read or unread                                                                      |
+| `cirrux email flag <email-uuid>` / `cirrux email unflag <email-uuid>` | Flag (star) or unflag an email                                                                       |
+| `cirrux attachment get <attachment-uuid>`                             | Attachment metadata                                                                                  |
+| `cirrux attachment download <attachment-uuid>`                        | Raw bytes to stdout (use `--json` for base64url)                                                     |
+| `cirrux drive list [folder-uuid]`                                     | List folders and files in a folder (omit for the root)                                               |
+| `cirrux drive get <file-uuid>`                                        | File metadata                                                                                        |
+| `cirrux drive download <file-uuid>`                                   | Decrypt locally; raw bytes to stdout (`--output <path>` to stream to a file, `--json` for base64url) |
+| `cirrux drive upload [folder-uuid] --file <path>`                     | Encrypt locally and upload, 2 GB max (`--name`, `--content-type`)                                    |
+| `cirrux drive trash <file-uuid>`                                      | Move a file to the trash (reversible, idempotent)                                                    |
+| `cirrux drive delete <file-uuid>`                                     | Permanently delete a file (idempotent)                                                               |
+| `cirrux skill install` / `cirrux skill print`                         | Install or preview the bundled agent skill                                                           |
 
 Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `in:inbox`/`in:sent`/`in:drafts`/`in:archive`/`in:snoozed`/`in:starred`, `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.
 
 Every data-producing command supports three output modes:
 
-| Flag        | What you get                                          | When to use it                   |
-|-------------|-------------------------------------------------------|----------------------------------|
-| *(default)* | Human-readable text                                   | Reading output at the terminal   |
-| `--json`    | Structured JSON                                       | Parsing fields programmatically  |
-| `--quiet`   | Bare identifier(s), one per line                      | Piping UUIDs into the next call  |
+| Flag        | What you get                     | When to use it                  |
+| ----------- | -------------------------------- | ------------------------------- |
+| _(default)_ | Human-readable text              | Reading output at the terminal  |
+| `--json`    | Structured JSON                  | Parsing fields programmatically |
+| `--quiet`   | Bare identifier(s), one per line | Piping UUIDs into the next call |
 
-Exit codes follow a predictable convention (`0` success, `2` usage error, `3` not found, `4` not logged in, `5` conflict) so scripts can branch on them without parsing error text. See [CLI design principles](docs/cli-design-principles.md) for the full rationale.
+Exit codes follow a predictable convention (`0` success, `2` usage error, `3` not found, `4` not logged in, `5` conflict, `6` rate limited) so scripts can branch on them without parsing error text. See [CLI design principles](docs/cli-design-principles.md) for the full rationale.
+
+### Rate limits
+
+The CLI absorbs the public API's rate limit (600 requests/minute per token) for you: on a `429` it honors the server's `Retry-After` and retries automatically (falling back to exponential backoff), so batch jobs ride out a throttle window instead of failing. Direct-to-S3 chunk transfers retry the same way on transient `503 SlowDown`. Only when a limit stays saturated past the retry budget does the command give up, exiting `6` with a `rate_limited` error (the `--json` shape carries a wait hint). Uploads are durable once they complete: a throttle late in the multi-step upload no longer aborts a file that already landed, so retries won't collide with a "name already exists" conflict.
 
 ### Pipe UUIDs between commands
 
@@ -154,7 +156,7 @@ cirrux skill install --project    # ./.claude/skills/cirrux/SKILL.md (checked in
 cirrux skill print                # preview the bundled skill content
 ```
 
-Once installed, ask your assistant something like *"show me the latest unread thread in my inbox"* and it'll reach for the CLI.
+Once installed, ask your assistant something like _"show me the latest unread thread in my inbox"_ and it'll reach for the CLI.
 
 ## Links
 

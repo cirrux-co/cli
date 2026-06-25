@@ -9,11 +9,77 @@ export function apiUrl(): string {
 export class ApiError extends Error {
   status: number
   body: string
+  /** How long to wait before retrying, derived from the response's rate-limit
+   * headers (Retry-After / X-RateLimit-Reset). Undefined when the server gave
+   * no hint, in which case callers fall back to exponential backoff. */
+  retryAfterMs?: number
 
-  constructor(status: number, body: string) {
+  constructor(status: number, body: string, retryAfterMs?: number) {
     super(`API error ${status}: ${body}`)
     this.status = status
     this.body = body
+    this.retryAfterMs = retryAfterMs
+  }
+}
+
+// --- Rate-limit-aware retry ---
+//
+// The public API throttles at 600 req/60s per token and answers with 429 plus
+// Retry-After / X-RateLimit-Reset headers; S3 occasionally answers 503
+// SlowDown. Both are transient, so we wait the hinted interval (or back off
+// exponentially with full jitter) and retry a bounded number of times before
+// letting the error surface. A batch uploader thus rides out a throttle window
+// instead of failing the file.
+const RETRYABLE_STATUSES = new Set([429, 503])
+const MAX_RETRY_ATTEMPTS = 5
+const BASE_BACKOFF_MS = 500
+const MAX_RETRY_WAIT_MS = 60_000
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** Parse a retry delay (ms) from a response's rate-limit headers, if present. */
+export function parseRetryAfterMs(headers: Headers): number | undefined {
+  const retryAfter = headers.get('retry-after')
+  if (retryAfter) {
+    const seconds = Number(retryAfter)
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
+    const date = Date.parse(retryAfter) // Retry-After may also be an HTTP date
+    if (!Number.isNaN(date)) return Math.max(0, date - Date.now())
+  }
+  const reset = headers.get('x-ratelimit-reset')
+  if (reset) {
+    const epoch = Number(reset)
+    if (Number.isFinite(epoch)) return Math.max(0, epoch * 1000 - Date.now())
+  }
+  return undefined
+}
+
+/** Build an ApiError from a non-ok response, capturing its body and retry hint. */
+async function apiErrorFrom(response: Response): Promise<ApiError> {
+  return new ApiError(response.status, await response.text(), parseRetryAfterMs(response.headers))
+}
+
+function retryDelayMs(error: ApiError, attempt: number): number {
+  if (error.retryAfterMs !== undefined) return Math.min(error.retryAfterMs, MAX_RETRY_WAIT_MS)
+  const backoff = BASE_BACKOFF_MS * 2 ** attempt
+  return Math.min(Math.random() * backoff, MAX_RETRY_WAIT_MS) // full jitter
+}
+
+/** Run a request, retrying on transient rate-limit / SlowDown responses. */
+export async function withRetry<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await run()
+    } catch (error) {
+      if (
+        !(error instanceof ApiError) ||
+        !RETRYABLE_STATUSES.has(error.status) ||
+        attempt >= MAX_RETRY_ATTEMPTS
+      ) {
+        throw error
+      }
+      await sleep(retryDelayMs(error, attempt))
+    }
   }
 }
 
@@ -64,16 +130,15 @@ export async function apiRequest<T>(
     headers['Authorization'] = `Bearer ${options.token}`
   }
 
-  const response = await fetch(url.toString(), {
-    method: options.method ?? (options.body ? 'POST' : 'GET'),
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
+  const response = await withRetry(async () => {
+    const r = await fetch(url.toString(), {
+      method: options.method ?? (options.body ? 'POST' : 'GET'),
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    })
+    if (!r.ok) throw await apiErrorFrom(r)
+    return r
   })
-
-  if (!response.ok) {
-    const errorBody = await response.text()
-    throw new ApiError(response.status, errorBody)
-  }
 
   return response.json() as Promise<T>
 }
@@ -93,15 +158,11 @@ export async function apiRequestRaw(
     headers['Authorization'] = `Bearer ${options.token}`
   }
 
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers,
+  const response = await withRetry(async () => {
+    const r = await fetch(url.toString(), { method: 'GET', headers })
+    if (!r.ok) throw await apiErrorFrom(r)
+    return r
   })
-
-  if (!response.ok) {
-    const errorBody = await response.text()
-    throw new ApiError(response.status, errorBody)
-  }
 
   const buffer = Buffer.from(await response.arrayBuffer())
   const contentType = response.headers.get('content-type') ?? 'application/octet-stream'
@@ -198,16 +259,14 @@ export async function authedRequestVoid(
     }
     headers['Authorization'] = `Bearer ${token}`
 
-    const response = await fetch(url.toString(), {
-      method: options.method ?? (options.body ? 'POST' : 'GET'),
-      headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
+    await withRetry(async () => {
+      const response = await fetch(url.toString(), {
+        method: options.method ?? (options.body ? 'POST' : 'GET'),
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      })
+      if (!response.ok) throw await apiErrorFrom(response)
     })
-
-    if (!response.ok) {
-      const errorBody = await response.text()
-      throw new ApiError(response.status, errorBody)
-    }
   })
 }
 
@@ -231,15 +290,15 @@ export async function putToPresignedUrl(url: string, body: Buffer): Promise<stri
   const payload = new ArrayBuffer(body.byteLength)
   new Uint8Array(payload).set(body)
 
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: { 'Content-Length': String(body.byteLength) },
-    body: payload,
+  const response = await withRetry(async () => {
+    const r = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Length': String(body.byteLength) },
+      body: payload,
+    })
+    if (!r.ok) throw await apiErrorFrom(r)
+    return r
   })
-
-  if (!response.ok) {
-    throw new ApiError(response.status, await response.text())
-  }
 
   const etag = response.headers.get('etag')
   if (!etag) {
@@ -250,14 +309,14 @@ export async function putToPresignedUrl(url: string, body: Buffer): Promise<stri
 
 /** GET a byte range [start, end) from a presigned S3 URL. */
 export async function getRangeFromPresignedUrl(url: string, start: number, end: number): Promise<Buffer> {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { Range: `bytes=${start}-${end - 1}` },
+  const response = await withRetry(async () => {
+    const r = await fetch(url, {
+      method: 'GET',
+      headers: { Range: `bytes=${start}-${end - 1}` },
+    })
+    if (!r.ok) throw await apiErrorFrom(r)
+    return r
   })
-
-  if (!response.ok) {
-    throw new ApiError(response.status, await response.text())
-  }
 
   return Buffer.from(await response.arrayBuffer())
 }

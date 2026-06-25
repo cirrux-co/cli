@@ -5,6 +5,7 @@ export const ExitCode = {
   NOT_FOUND: 3,
   AUTH_REQUIRED: 4,
   CONFLICT: 5,
+  RATE_LIMITED: 6,
 } as const
 
 export type ExitCode = (typeof ExitCode)[keyof typeof ExitCode]

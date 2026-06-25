@@ -41,26 +41,33 @@ The `CIRRUX_CO_AUTHOR` env var also works as a fallback for non-Claude automatio
 
 Every data-producing command supports three output modes:
 
-| Flag       | Shape                                                  | Use it when                              |
-|------------|--------------------------------------------------------|------------------------------------------|
-| (default)  | Human-readable text to stdout                          | Showing the user a summary               |
-| `--json`   | Structured JSON to stdout                              | Parsing fields programmatically          |
-| `--quiet`  | Bare identifier(s) to stdout, one per line             | Piping UUIDs into another `cirrux` call  |
+| Flag      | Shape                                      | Use it when                             |
+| --------- | ------------------------------------------ | --------------------------------------- |
+| (default) | Human-readable text to stdout              | Showing the user a summary              |
+| `--json`  | Structured JSON to stdout                  | Parsing fields programmatically         |
+| `--quiet` | Bare identifier(s) to stdout, one per line | Piping UUIDs into another `cirrux` call |
 
 `stderr` is always for diagnostics and errors; `stdout` is always for data. You can rely on this.
 
 ## Exit codes
 
-| Code | Meaning                              |
-|------|--------------------------------------|
-| 0    | Success                              |
-| 1    | General / unexpected failure         |
-| 2    | Bad arguments or usage               |
-| 3    | Resource not found                   |
-| 4    | Not logged in / permission denied    |
-| 5    | Resource already exists (conflict)   |
+| Code | Meaning                            |
+| ---- | ---------------------------------- |
+| 0    | Success                            |
+| 1    | General / unexpected failure       |
+| 2    | Bad arguments or usage             |
+| 3    | Resource not found                 |
+| 4    | Not logged in / permission denied  |
+| 5    | Resource already exists (conflict) |
+| 6    | Rate limited (retries exhausted)   |
 
 Check the exit code when scripting — don't grep error text.
+
+## Rate limits
+
+The public API throttles at **600 requests/minute per token**. The CLI handles this for you: on a `429` it reads the server's `Retry-After` and retries automatically (with an exponential-backoff fallback), and direct-to-S3 chunk transfers retry the same way on a transient `503`. Most throttling is therefore invisible — a batch loop just slows down and keeps going.
+
+Only when a limit stays saturated past the retry budget does a command give up: it exits `6` with a `rate_limited` error type (the `--json` body carries a wait hint). Treat exit `6` as "back off and retry later," not a hard failure. Uploads are durable once complete, so a throttle late in a multi-step upload won't strand a half-uploaded file or cause a phantom `name_taken` conflict on retry.
 
 ## Command tree
 
@@ -191,7 +198,7 @@ cirrux drive folder trash <folder-uuid>             # move a folder to the trash
 cirrux drive folder delete <folder-uuid>            # delete a folder (idempotent)
 ```
 
-`cirrux drive download` writes raw bytes to stdout (like `attachment download`) — pipe to a file with `> out`, or use `--output <path>` to stream straight to a file (preferred for large files). Listing is **single-level, folder by folder** — folders print with a trailing `/`, then files; there's no recursive tree. Upload and download are capped at **2 GB** per file. File contents are end-to-end encrypted: the CLI encrypts and decrypts locally (AES-256-GCM, chunked) and streams ciphertext directly to/from storage, so large files never buffer in memory and stay interoperable with the web app.
+`cirrux drive download` writes raw bytes to stdout (like `attachment download`) — pipe to a file with `> out`, or use `--output <path>` to stream straight to a file (preferred for large files). Listing is **single-level, folder by folder** — folders print with a trailing `/`, then files; there's no recursive tree. Upload and download are capped at **2 GB** per file.
 
 `drive trash` / `drive delete` and `drive rename` / `drive move` operate on **files**; the matching folder operations live under the `drive folder` noun group (`create` / `get` / `rename` / `move` / `trash` / `delete`). All are idempotent where it makes sense. Folder `trash` does **not** cascade to its contents (they stay visible under a Trash view), mirroring file trash. Moving a folder into itself or one of its own subfolders fails with exit code `2` (`invalid_move`). Names must be unique within a folder (Drive behaves like a filesystem): an `upload`, `rename`, `move`, or folder `create` that would collide with an existing live item in the destination fails with exit code `5` (`name_taken`) — retry with a different name (`--name` on upload, or a new name argument). A duplicate of a **trashed** item is fine; only live items conflict. Drive needs the `drive.read` / `drive.create` / `drive.update` / `drive.delete` OAuth scopes — rename/move require `drive.update`; if the CLI was logged in before these were added, a Drive command will fail with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
 
@@ -209,21 +216,21 @@ cirrux thread search "<query>" --cursor <cur>          # pagination cursor from 
 
 Supported query operators (ANDed by default, prefix with `-` to negate):
 
-| Operator            | Example                             |
-|---------------------|-------------------------------------|
-| `from:`             | `from:alice@example.com`            |
-| `to:` / `cc:` / `bcc:` | `to:me@example.com`              |
-| `subject:`          | `subject:"quarterly review"`        |
-| `body:`             | `body:invoice`                      |
-| `is:read` / `is:unread` | `is:unread`                     |
-| `is:starred` / `is:unstarred` | `is:starred`              |
-| `is:replied`        | `is:replied`                        |
-| `has:attachment`    | `has:attachment`                    |
-| `in:`               | `in:inbox`, `in:sent`, `in:drafts`, `in:archive`, `in:snoozed`, `in:starred` |
-| `after:` / `before:` | `after:2026-01-01 before:2026-04-01` |
-| Bare term           | `invoice` (full-text)               |
-| Phrase              | `"monthly report"`                  |
-| Negate              | `-from:noreply@example.com`         |
+| Operator                      | Example                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| `from:`                       | `from:alice@example.com`                                                     |
+| `to:` / `cc:` / `bcc:`        | `to:me@example.com`                                                          |
+| `subject:`                    | `subject:"quarterly review"`                                                 |
+| `body:`                       | `body:invoice`                                                               |
+| `is:read` / `is:unread`       | `is:unread`                                                                  |
+| `is:starred` / `is:unstarred` | `is:starred`                                                                 |
+| `is:replied`                  | `is:replied`                                                                 |
+| `has:attachment`              | `has:attachment`                                                             |
+| `in:`                         | `in:inbox`, `in:sent`, `in:drafts`, `in:archive`, `in:snoozed`, `in:starred` |
+| `after:` / `before:`          | `after:2026-01-01 before:2026-04-01`                                         |
+| Bare term                     | `invoice` (full-text)                                                        |
+| Phrase                        | `"monthly report"`                                                           |
+| Negate                        | `-from:noreply@example.com`                                                  |
 
 Results exclude trash and junk automatically. Quote the whole query when it contains spaces or shell metacharacters: `cirrux thread search "from:alice is:unread"`.
 
@@ -342,6 +349,7 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
 - Always inspect `cirrux <command> --help` before guessing flags — the CLI is self-documenting and new flags land there first.
 - Prefer `--json` when you need to extract specific fields, and `--quiet` when you're piping UUIDs into the next call.
 - UUIDs are opaque strings — never try to construct or mutate them.
+- For big batch loops (bulk uploads, mass mutations), let the CLI pace itself — it absorbs `429`s by waiting and retrying. Don't add your own tight retry-on-nonzero-exit loop; if a command exits `6` (`rate_limited`), the limit is genuinely saturated, so pause before continuing rather than hammering.
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").

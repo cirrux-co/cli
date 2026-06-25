@@ -89,9 +89,12 @@ export async function driveUploadCommand(
 }
 
 // Runs the chunked multipart upload: init → presign parts → encrypt+PUT each
-// chunk straight to S3 → complete. The file is read and encrypted one chunk at a
-// time, so memory stays flat regardless of file size. On any failure the
-// in-progress upload is aborted so we don't leave an orphaned 'uploading' row.
+// chunk straight to S3 → complete (which returns the finished file's metadata).
+// The file is read and encrypted one chunk at a time, so memory stays flat
+// regardless of file size. `complete` is the final step, so any failure means
+// the upload did not finish — we abort it to avoid leaving an orphaned
+// 'uploading' row. Once `complete` returns we never abort, so a transient
+// throttle late in the sequence can't tear down a file that already landed.
 async function uploadFile(args: {
   path: string
   folderUuid: string | undefined
@@ -142,12 +145,10 @@ async function uploadFile(args: {
       closeSync(fd)
     }
 
-    await authedRequest(`public_api/v1/drive/uploads/${encodeURIComponent(init.file_uuid)}/complete`, {
-      method: 'POST',
-      body: { parts },
-    })
-
-    return await authedRequest<DriveFile>(`public_api/v1/drive/files/${encodeURIComponent(init.file_uuid)}`)
+    return await authedRequest<DriveFile>(
+      `public_api/v1/drive/uploads/${encodeURIComponent(init.file_uuid)}/complete`,
+      { method: 'POST', body: { parts } },
+    )
   } catch (error) {
     await abortQuietly(init.file_uuid)
     throw error

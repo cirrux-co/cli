@@ -68,8 +68,19 @@ export async function checkForUpdate(currentVersion: string) {
   }
 
   if (latestVersion && compareVersions(latestVersion, currentVersion) > 0) {
-    console.log(
-      `\nUpdate available: ${currentVersion} → ${latestVersion}\nRun \`brew upgrade cirrux\` to update.\n`
-    )
+    printUpdateNotice(currentVersion, latestVersion)
   }
+}
+
+/**
+ * Print the "update available" notice to stderr.
+ *
+ * This must never go to stdout: stdout carries the command's machine-readable
+ * output (e.g. a bare UUID in --quiet mode), and a notice mixed in there gets
+ * captured by command substitution and corrupts the value.
+ */
+export function printUpdateNotice(currentVersion: string, latestVersion: string) {
+  console.error(
+    `\nUpdate available: ${currentVersion} → ${latestVersion}\nRun \`brew upgrade cirrux\` to update.\n`
+  )
 }

@@ -1,5 +1,5 @@
 import { test, expect, beforeEach } from 'bun:test'
-import { resolveCoAuthor, setExplicitCoAuthor } from './api.js'
+import { ApiError, parseRetryAfterMs, resolveCoAuthor, setExplicitCoAuthor, withRetry } from './api.js'
 
 beforeEach(() => {
   setExplicitCoAuthor(undefined)
@@ -41,4 +41,71 @@ test('setExplicitCoAuthor trims and clears on empty', () => {
 
   setExplicitCoAuthor(undefined)
   expect(resolveCoAuthor({})).toBeUndefined()
+})
+
+// --- Rate-limit retry ---
+
+// A 0ms Retry-After hint keeps these tests instant and deterministic (no
+// reliance on the jittered exponential-backoff fallback).
+const rateLimited = () => new ApiError(429, 'rate_limited', 0)
+
+test('withRetry retries a 429 then resolves', async () => {
+  let calls = 0
+  const result = await withRetry(async () => {
+    calls++
+    if (calls === 1) throw rateLimited()
+    return 'ok'
+  })
+  expect(result).toBe('ok')
+  expect(calls).toBe(2)
+})
+
+test('withRetry retries a 503 (S3 SlowDown)', async () => {
+  let calls = 0
+  const result = await withRetry(async () => {
+    calls++
+    if (calls < 3) throw new ApiError(503, 'SlowDown', 0)
+    return 'ok'
+  })
+  expect(result).toBe('ok')
+  expect(calls).toBe(3)
+})
+
+test('withRetry gives up after the attempt cap and rethrows the 429', async () => {
+  let calls = 0
+  const error = await withRetry(async () => {
+    calls++
+    throw rateLimited()
+  }).catch((e) => e)
+
+  expect(error).toBeInstanceOf(ApiError)
+  expect((error as ApiError).status).toBe(429)
+  expect(calls).toBe(6) // 1 initial attempt + 5 retries
+})
+
+test('withRetry does not retry non-retryable statuses', async () => {
+  let calls = 0
+  const error = await withRetry(async () => {
+    calls++
+    throw new ApiError(404, 'not found')
+  }).catch((e) => e)
+
+  expect(error).toBeInstanceOf(ApiError)
+  expect((error as ApiError).status).toBe(404)
+  expect(calls).toBe(1)
+})
+
+test('parseRetryAfterMs reads Retry-After seconds', () => {
+  expect(parseRetryAfterMs(new Headers({ 'retry-after': '5' }))).toBe(5000)
+})
+
+test('parseRetryAfterMs falls back to X-RateLimit-Reset epoch', () => {
+  const reset = Math.floor(Date.now() / 1000) + 30
+  const ms = parseRetryAfterMs(new Headers({ 'x-ratelimit-reset': String(reset) }))
+  expect(ms).toBeGreaterThan(25_000)
+  expect(ms).toBeLessThanOrEqual(31_000)
+})
+
+test('parseRetryAfterMs returns undefined when no rate-limit headers are present', () => {
+  expect(parseRetryAfterMs(new Headers())).toBeUndefined()
 })

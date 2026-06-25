@@ -128,6 +128,21 @@ export function handleDriveError(
         hint: 'Choose a different name and try again.',
       })
     }
+
+    // Reached only after the HTTP layer's automatic retries are exhausted, i.e.
+    // the rate limit stayed saturated. Give scripts/agents a stable signal to
+    // back off on rather than a generic failure.
+    if (error.status === 429) {
+      const waitSeconds = error.retryAfterMs !== undefined ? Math.ceil(error.retryAfterMs / 1000) : undefined
+      outputError(`${context.action} failed: rate limit exceeded.`, {
+        ...options,
+        code: ExitCode.RATE_LIMITED,
+        errorType: 'rate_limited',
+        hint: waitSeconds
+          ? `Wait ${waitSeconds}s before retrying, or slow the request rate.`
+          : 'Wait a moment before retrying, or slow the request rate.',
+      })
+    }
   }
 
   const message = error instanceof Error ? error.message : String(error)
