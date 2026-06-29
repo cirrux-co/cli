@@ -85,7 +85,7 @@ cirrux mailbox labels list <mailbox-uuid>        # list system + custom labels (
 
 ```bash
 cirrux thread list <mailbox-uuid>                  # list threads in a mailbox
-cirrux thread list <mailbox-uuid> --label inbox    # filter by label (inbox, sent, archive, drafts, trash, spam, or a label UUID)
+cirrux thread list <mailbox-uuid> --label inbox    # filter by label (inbox, sent, draft, junk, archive, trash, snoozed, or a label UUID; "drafts"/"spam" also accepted)
 cirrux thread list <mailbox-uuid> --limit 50       # 1-100 (default 25)
 cirrux thread list <mailbox-uuid> --cursor <cur>   # pagination (cursor is in the previous response)
 cirrux thread get <thread-uuid>                    # thread with all non-deleted emails (uuid, from, subject, labels, attachment counts)
