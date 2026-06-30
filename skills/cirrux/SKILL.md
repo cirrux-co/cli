@@ -79,7 +79,60 @@ Discover everything with `cirrux --help` and `cirrux <noun> --help`. The stable 
 cirrux mailbox list                              # list mailboxes the user has access to
 cirrux mailbox get <mailbox-uuid>                # mailbox metadata
 cirrux mailbox labels list <mailbox-uuid>        # list system + custom labels (uuid, type, name)
+cirrux mailbox labels create <mailbox-uuid> --name "Receipts"          # create a custom label (idempotent on name)
+cirrux mailbox labels update <mailbox-uuid> <label-uuid> --name "Invoices"  # rename a custom label
+cirrux mailbox labels delete <mailbox-uuid> <label-uuid>              # delete a custom label
 ```
+
+Only custom (`user`-type) labels can be created, renamed, or deleted. Trying to rename or delete a system label (inbox/sent/archive/trash/junk/draft/snoozed) is rejected with a 422. Deleting a label removes it from every email it was assigned to; any email whose only remaining label was that one is moved to the archive, so it keeps a location instead of being cleaned up as an orphan.
+
+### Filters
+
+Server-side filter rules that run on incoming mail, the same engine the webmail "Filters" UI uses. Each rule is `condition_ast` (a condition tree) plus an `actions` array, run in `priority` order (lower first).
+
+```bash
+cirrux mailbox filters list <mailbox-uuid>                    # list rules (uuid, status, name), ordered by priority
+cirrux mailbox filters create <mailbox-uuid> --name "Invoices" \
+    --condition-ast '{"type":"contains","field":"from","value":"@billing.example.com"}' \
+    --actions '[{"type":"add_label","label_uuid":"<label-uuid>"},{"type":"skip_inbox"}]'
+cirrux mailbox filters update <mailbox-uuid> <filter-uuid> --status inactive   # change only the fields you pass
+cirrux mailbox filters delete <mailbox-uuid> <filter-uuid>
+```
+
+`create` requires `--name` and `--condition-ast`; `--actions` defaults to `[]`. Optional: `--description`, `--status` (`active`|`inactive`, default `active`), `--priority` (int, default 0), `--stop-processing`. `update` sends only the flags you pass, so you can flip one field without re-specifying the rest. Both `--condition-ast` and `--actions` take raw JSON in the shapes below; malformed JSON fails locally (exit 2) and a semantically invalid rule is rejected by the server with a 422.
+
+**`condition_ast` node types** (compose with `and`/`or`/`not`):
+
+- `{"type":"and","children":[...]}` / `{"type":"or","children":[...]}` — all / any child matches
+- `{"type":"not","child":{...}}` — negates one child
+- `{"type":"contains","field":"<f>","value":"<str>"}` — substring (case-insensitive). Fields: `from`, `to`, `cc`, `bcc`, `subject`, `body`, `message_id`, `text`
+- `{"type":"equals","field":"<f>","value":"<str>"}` — exact. Fields: `from`, `to`, `cc`, `bcc`, `subject`, `body`
+- `{"type":"dateafter"|"datebefore","field":"received_at"|"created_at","value":"<ISO date>"}`
+- `{"type":"flag","field":"seen"|"answered"|"flagged"|"deleted","value":true|false}`
+- `{"type":"all"}` — matches every message
+- `{"type":"hasattachment"|"isreply"|"fromcontact","value":true|false}`
+- `{"type":"sizegreaterthan"|"sizelessthan","bytes":<int>}`
+- `{"type":"fromcontactgroup","contact_group_uuid":"..."}`
+
+**`actions` array entries:**
+
+- `{"type":"add_label","label_uuid":"..."}` — get the uuid from `cirrux mailbox filters`' sibling command `cirrux mailbox labels list`
+- `{"type":"skip_inbox"}` — keep it out of the inbox (archives if no other label is added)
+- `{"type":"mark_read","value":true}` / `{"type":"flag","value":true}` (`value` optional, defaults true)
+- `{"type":"archive"}`, `{"type":"delete"}`
+- `{"type":"forward","forwarding_address_uuid":"..."}` — only works when forwarding is enabled for the workspace
+
+Example — file invoices from a sender under a label and out of the inbox, OR-ing two senders:
+
+```bash
+mb=$(cirrux mailbox list --quiet | head -1)
+lbl=$(cirrux mailbox labels create "$mb" --name "Invoices" --quiet)
+cirrux mailbox filters create "$mb" --name "Invoices" \
+  --condition-ast '{"type":"or","children":[{"type":"contains","field":"from","value":"@billing.example.com"},{"type":"contains","field":"from","value":"invoices@vendor.com"}]}' \
+  --actions "[{\"type\":\"add_label\",\"label_uuid\":\"$lbl\"},{\"type\":\"skip_inbox\"}]"
+```
+
+Filters apply to mail arriving after the rule is created; they do not retroactively sort existing mail.
 
 ### Thread
 
@@ -353,4 +406,4 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `trash` / `delete` / `rename` / `move` for files and `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders. Snoozing and Drive sharing are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `trash` / `delete` / `rename` / `move` for files and `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders. Snoozing and Drive sharing are not yet exposed — say so rather than fabricating commands.

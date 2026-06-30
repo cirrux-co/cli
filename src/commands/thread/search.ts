@@ -1,4 +1,4 @@
-import { authedRequest } from '../../api.js'
+import { ApiError, authedRequest } from '../../api.js'
 import { getActiveCredentials } from '../../config.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
@@ -92,24 +92,25 @@ export async function threadSearchCommand(
       quietValue,
     })
   } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.status === 422) {
+        outputError(`Invalid query: ${error.description ?? error.body}`, {
+          ...options,
+          code: ExitCode.USAGE_ERROR,
+          errorType: 'invalid_query',
+        })
+      }
+
+      if (error.status === 404) {
+        outputError(`Mailbox not found.`, {
+          ...options,
+          code: ExitCode.NOT_FOUND,
+          errorType: 'not_found',
+        })
+      }
+    }
+
     const message = error instanceof Error ? error.message : String(error)
-
-    if (message.includes('422')) {
-      outputError(`Invalid query: ${message}`, {
-        ...options,
-        code: ExitCode.USAGE_ERROR,
-        errorType: 'invalid_query',
-      })
-    }
-
-    if (message.includes('404')) {
-      outputError(`Mailbox not found.`, {
-        ...options,
-        code: ExitCode.NOT_FOUND,
-        errorType: 'not_found',
-      })
-    }
-
     outputError(`Failed to search threads: ${message}`, {
       ...options,
       code: ExitCode.GENERAL_FAILURE,

@@ -6,18 +6,33 @@ export function apiUrl(): string {
   return process.env.CIRRUX_API_URL ?? DEFAULT_API_URL
 }
 
+export function parseApiErrorDescription(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as { error_description?: unknown }
+    if (typeof parsed.error_description === 'string') {
+      return parsed.error_description
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export class ApiError extends Error {
   status: number
   body: string
+  description: string | null
   /** How long to wait before retrying, derived from the response's rate-limit
    * headers (Retry-After / X-RateLimit-Reset). Undefined when the server gave
    * no hint, in which case callers fall back to exponential backoff. */
   retryAfterMs?: number
 
   constructor(status: number, body: string, retryAfterMs?: number) {
-    super(`API error ${status}: ${body}`)
+    const description = parseApiErrorDescription(body)
+    super(description ?? `API error ${status}: ${body}`)
     this.status = status
     this.body = body
+    this.description = description
     this.retryAfterMs = retryAfterMs
   }
 }

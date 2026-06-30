@@ -1,18 +1,7 @@
-import { authedRequest } from '../../api.js'
-import { getActiveCredentials } from '../../config.js'
+import { authedRequest, authedRequestVoid } from '../../api.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
-
-interface Label {
-  object: string
-  uuid: string
-  name: string
-  type: string
-  color: string | null
-  description: string | null
-  is_visible: boolean
-  position: number
-}
+import { handleLabelError, type Label, requireCredentials } from './labels-shared.js'
 
 interface MailboxLabelsResponse {
   object: string
@@ -21,23 +10,24 @@ interface MailboxLabelsResponse {
   data: Label[]
 }
 
+interface LabelNameOptions extends OutputOptions {
+  name: string
+}
+
+function labelsPath(mailboxUuid: string, labelUuid?: string): string {
+  const base = `public_api/v1/mailboxes/${encodeURIComponent(mailboxUuid)}/labels`
+  return labelUuid ? `${base}/${encodeURIComponent(labelUuid)}` : base
+}
+
 export async function mailboxLabelsListCommand(
   mailboxUuid: string,
   options: OutputOptions,
 ): Promise<void> {
-  const creds = getActiveCredentials()
-  if (!creds) {
-    outputError('Not logged in.', {
-      ...options,
-      code: ExitCode.AUTH_REQUIRED,
-      hint: "Run 'cirrux login' first.",
-      errorType: 'auth_required',
-    })
-  }
+  requireCredentials(options)
 
   try {
     const response = await authedRequest<MailboxLabelsResponse>(
-      `public_api/v1/mailboxes/${encodeURIComponent(mailboxUuid)}/labels`,
+      labelsPath(mailboxUuid),
     )
 
     const data = {
@@ -54,20 +44,88 @@ export async function mailboxLabelsListCommand(
       quietValue,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-
-    if (message.includes('404')) {
-      outputError(`Mailbox '${mailboxUuid}' not found.`, {
-        ...options,
-        code: ExitCode.NOT_FOUND,
-        errorType: 'not_found',
-      })
-    }
-
-    outputError(`Failed to list labels: ${message}`, {
-      ...options,
-      code: ExitCode.GENERAL_FAILURE,
-      errorType: 'api_error',
-    })
+    handleLabelError(error, options, { action: 'List labels', notFound: `Mailbox '${mailboxUuid}' not found.` })
   }
 }
+
+function requireName(options: LabelNameOptions): string {
+  const name = options.name?.trim()
+  if (!name) {
+    outputError('A label name is required.', {
+      ...options,
+      code: ExitCode.USAGE_ERROR,
+      hint: 'Pass --name "<label name>".',
+      errorType: 'usage_error',
+    })
+  }
+  return name
+}
+
+export async function mailboxLabelsCreateCommand(
+  mailboxUuid: string,
+  options: LabelNameOptions,
+): Promise<void> {
+  requireCredentials(options)
+  const name = requireName(options)
+
+  try {
+    const label = await authedRequest<Label>(labelsPath(mailboxUuid), {
+      method: 'POST',
+      body: { name },
+    })
+
+    output(label as unknown as Record<string, unknown>, {
+      ...options,
+      text: `Created label ${label.name} (${label.uuid})`,
+      quietValue: label.uuid,
+    })
+  } catch (error) {
+    handleLabelError(error, options, { action: 'Create label', notFound: `Mailbox '${mailboxUuid}' not found.` })
+  }
+}
+
+export async function mailboxLabelsUpdateCommand(
+  mailboxUuid: string,
+  labelUuid: string,
+  options: LabelNameOptions,
+): Promise<void> {
+  requireCredentials(options)
+  const name = requireName(options)
+
+  try {
+    const label = await authedRequest<Label>(labelsPath(mailboxUuid, labelUuid), {
+      method: 'POST',
+      body: { name },
+    })
+
+    output(label as unknown as Record<string, unknown>, {
+      ...options,
+      text: `Renamed label to ${label.name} (${label.uuid})`,
+      quietValue: label.uuid,
+    })
+  } catch (error) {
+    handleLabelError(error, options, { action: 'Update label', notFound: `Label '${labelUuid}' not found.` })
+  }
+}
+
+export async function mailboxLabelsDeleteCommand(
+  mailboxUuid: string,
+  labelUuid: string,
+  options: OutputOptions,
+): Promise<void> {
+  requireCredentials(options)
+
+  try {
+    await authedRequestVoid(labelsPath(mailboxUuid, labelUuid), { method: 'DELETE' })
+
+    output({ uuid: labelUuid, deleted: true }, {
+      ...options,
+      text: `Deleted label ${labelUuid}`,
+      quietValue: labelUuid,
+    })
+  } catch (error) {
+    handleLabelError(error, options, { action: 'Delete label', notFound: `Label '${labelUuid}' not found.` })
+  }
+}
+
+export { labelsPath }

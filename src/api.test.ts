@@ -1,5 +1,12 @@
 import { test, expect, beforeEach } from 'bun:test'
-import { ApiError, parseRetryAfterMs, resolveCoAuthor, setExplicitCoAuthor, withRetry } from './api.js'
+import {
+  ApiError,
+  parseApiErrorDescription,
+  parseRetryAfterMs,
+  resolveCoAuthor,
+  setExplicitCoAuthor,
+  withRetry,
+} from './api.js'
 
 beforeEach(() => {
   setExplicitCoAuthor(undefined)
@@ -41,6 +48,46 @@ test('setExplicitCoAuthor trims and clears on empty', () => {
 
   setExplicitCoAuthor(undefined)
   expect(resolveCoAuthor({})).toBeUndefined()
+})
+
+test('parseApiErrorDescription extracts error_description from JSON body', () => {
+  const body = JSON.stringify({
+    error: 'invalid_value',
+    error_description: 'The "sent" label is set automatically when an email is sent.',
+  })
+  expect(parseApiErrorDescription(body)).toBe(
+    'The "sent" label is set automatically when an email is sent.',
+  )
+})
+
+test('parseApiErrorDescription returns null for non-JSON body', () => {
+  expect(parseApiErrorDescription('Internal Server Error')).toBeNull()
+})
+
+test('parseApiErrorDescription returns null when error_description is missing', () => {
+  expect(parseApiErrorDescription(JSON.stringify({ error: 'oops' }))).toBeNull()
+})
+
+test('parseApiErrorDescription returns null when error_description is not a string', () => {
+  expect(parseApiErrorDescription(JSON.stringify({ error_description: 42 }))).toBeNull()
+})
+
+test('ApiError surfaces error_description as description and message', () => {
+  const body = JSON.stringify({
+    error: 'invalid_query',
+    error_description: "Unknown is: value 'inbox'. Did you mean in:inbox?",
+  })
+  const error = new ApiError(422, body)
+  expect(error.status).toBe(422)
+  expect(error.body).toBe(body)
+  expect(error.description).toBe("Unknown is: value 'inbox'. Did you mean in:inbox?")
+  expect(error.message).toBe("Unknown is: value 'inbox'. Did you mean in:inbox?")
+})
+
+test('ApiError falls back to status/body message when body has no description', () => {
+  const error = new ApiError(500, 'Internal Server Error')
+  expect(error.description).toBeNull()
+  expect(error.message).toBe('API error 500: Internal Server Error')
 })
 
 // --- Rate-limit retry ---

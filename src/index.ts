@@ -6,7 +6,18 @@ import { loginCommand } from './commands/login.js'
 import { logoutCommand } from './commands/logout.js'
 import { mailboxListCommand } from './commands/mailbox/list.js'
 import { mailboxGetCommand } from './commands/mailbox/get.js'
-import { mailboxLabelsListCommand } from './commands/mailbox/labels.js'
+import {
+  mailboxLabelsCreateCommand,
+  mailboxLabelsDeleteCommand,
+  mailboxLabelsListCommand,
+  mailboxLabelsUpdateCommand,
+} from './commands/mailbox/labels.js'
+import {
+  mailboxFiltersCreateCommand,
+  mailboxFiltersDeleteCommand,
+  mailboxFiltersListCommand,
+  mailboxFiltersUpdateCommand,
+} from './commands/mailbox/filters.js'
 import { threadListCommand } from './commands/thread/list.js'
 import { threadGetCommand } from './commands/thread/get.js'
 import { threadSearchCommand } from './commands/thread/search.js'
@@ -118,6 +129,114 @@ mailboxLabels
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only label UUIDs, one per line (for piping)')
   .action(mailboxLabelsListCommand)
+
+mailboxLabels
+  .command('create')
+  .description('Create a custom label for a mailbox')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .requiredOption('--name <name>', 'Label name')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new label UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux mailbox labels create <mailbox-uuid> --name "Receipts"')
+  .action(mailboxLabelsCreateCommand)
+
+mailboxLabels
+  .command('update')
+  .description('Rename a custom label (system labels cannot be changed)')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .argument('<label-uuid>', 'Label UUID (from `cirrux mailbox labels list`)')
+  .requiredOption('--name <name>', 'New label name')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the label UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux mailbox labels update <mailbox-uuid> <label-uuid> --name "Invoices"')
+  .action(mailboxLabelsUpdateCommand)
+
+mailboxLabels
+  .command('delete')
+  .description('Delete a custom label (system labels cannot be deleted)')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .argument('<label-uuid>', 'Label UUID (from `cirrux mailbox labels list`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted label UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux mailbox labels delete <mailbox-uuid> <label-uuid>')
+  .action(mailboxLabelsDeleteCommand)
+
+const mailboxFilters = mailbox
+  .command('filters')
+  .description('Manage email filter rules for a mailbox')
+
+const conditionAstHelp =
+  'condition_ast node types: and/or ({"children":[...]}), not ({"child":{}}), ' +
+  'contains/equals ({"field","value"}; contains fields: from,to,cc,bcc,subject,body,message_id,text; ' +
+  'equals fields: from,to,cc,bcc,subject,body), dateafter/datebefore ({"field":"received_at"|"created_at","value":"<date>"}), ' +
+  'flag ({"field":"seen"|"answered"|"flagged"|"deleted","value":<bool>}), all, ' +
+  'hasattachment/isreply/fromcontact ({"value":<bool>}), sizegreaterthan/sizelessthan ({"bytes":<int>}), ' +
+  'fromcontactgroup ({"contact_group_uuid":"..."}).\n' +
+  'action types: add_label ({"label_uuid"}), skip_inbox, mark_read (opt value), flag (opt value), ' +
+  'archive, delete, forward ({"forwarding_address_uuid"}).'
+
+mailboxFilters
+  .command('list')
+  .description('List filter rules for a mailbox (ordered by priority)')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only filter UUIDs, one per line (for piping)')
+  .action(mailboxFiltersListCommand)
+
+mailboxFilters
+  .command('create')
+  .description('Create a filter rule for a mailbox')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .requiredOption('--name <name>', 'Filter name')
+  .requiredOption('--condition-ast <json>', 'Condition tree as JSON')
+  .option('--actions <json>', 'Actions as a JSON array (default [])')
+  .option('--description <text>', 'Optional description')
+  .option('--status <status>', 'active or inactive (default active)')
+  .option('--priority <n>', 'Priority integer; lower runs first (default 0)')
+  .option('--stop-processing', 'Stop evaluating further rules once this one matches')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new filter UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nExample:\n' +
+      '  $ cirrux mailbox filters create <mailbox-uuid> \\\n' +
+      '      --name "Invoices" \\\n' +
+      '      --condition-ast \'{"type":"contains","field":"from","value":"@billing.example.com"}\' \\\n' +
+      '      --actions \'[{"type":"add_label","label_uuid":"<label-uuid>"},{"type":"skip_inbox"}]\'\n\n' +
+      conditionAstHelp,
+  )
+  .action(mailboxFiltersCreateCommand)
+
+mailboxFilters
+  .command('update')
+  .description('Update a filter rule (send only the fields you want to change)')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .argument('<filter-uuid>', 'Filter UUID (from `cirrux mailbox filters list`)')
+  .option('--name <name>', 'New name')
+  .option('--condition-ast <json>', 'New condition tree as JSON')
+  .option('--actions <json>', 'New actions as a JSON array')
+  .option('--description <text>', 'New description')
+  .option('--status <status>', 'active or inactive')
+  .option('--priority <n>', 'Priority integer; lower runs first')
+  .option('--stop-processing', 'Stop evaluating further rules once this one matches')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the filter UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nExample:\n  $ cirrux mailbox filters update <mailbox-uuid> <filter-uuid> --status inactive\n\n' +
+      conditionAstHelp,
+  )
+  .action(mailboxFiltersUpdateCommand)
+
+mailboxFilters
+  .command('delete')
+  .description('Delete a filter rule')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .argument('<filter-uuid>', 'Filter UUID (from `cirrux mailbox filters list`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted filter UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux mailbox filters delete <mailbox-uuid> <filter-uuid>')
+  .action(mailboxFiltersDeleteCommand)
 
 const thread = program
   .command('thread')

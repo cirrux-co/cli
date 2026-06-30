@@ -30,18 +30,6 @@ export function resolveLabelTarget(options: LabelTargetOptions): LabelTarget {
   return { ok: true, kind: 'label_uuid', value: options.labelUuid as string }
 }
 
-export function parseApiErrorDescription(body: string): string | null {
-  try {
-    const parsed = JSON.parse(body) as { error_description?: unknown }
-    if (typeof parsed.error_description === 'string') {
-      return parsed.error_description
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
 function ensureCreds(options: OutputOptions): void {
   const creds = getActiveCredentials()
   if (!creds) {
@@ -60,7 +48,7 @@ function handleLabelMutationError(
   options: OutputOptions,
 ): never {
   if (error instanceof ApiError) {
-    const description = parseApiErrorDescription(error.body) ?? error.body
+    const description = error.description ?? error.body
 
     if (error.status === 404) {
       outputError(description || `Resource for email '${emailUuid}' not found.`, {

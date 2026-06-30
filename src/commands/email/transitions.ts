@@ -3,7 +3,7 @@ import { getActiveCredentials } from '../../config.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
 import { type Email, summary } from './email-summary.js'
-import { parseApiErrorDescription, resolveLabelTarget, type LabelTargetOptions } from './labels.js'
+import { resolveLabelTarget, type LabelTargetOptions } from './labels.js'
 
 export type TransitionVerb = 'archive' | 'unarchive' | 'trash' | 'untrash' | 'spam' | 'unspam'
 
@@ -43,7 +43,7 @@ function ensureCreds(options: OutputOptions): void {
 
 function handleTransitionError(error: unknown, emailUuid: string, options: OutputOptions): never {
   if (error instanceof ApiError) {
-    const description = parseApiErrorDescription(error.body) ?? error.body
+    const description = error.description ?? error.body
 
     if (error.status === 404) {
       outputError(description || `Email '${emailUuid}' not found.`, {

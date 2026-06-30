@@ -2,7 +2,6 @@ import { ApiError } from '../../api.js'
 import { getActiveCredentials } from '../../config.js'
 import { ExitCode } from '../../exit-codes.js'
 import { outputError, type OutputOptions } from '../../output.js'
-import { parseApiErrorDescription } from '../email/labels.js'
 
 export interface Draft {
   object: 'draft'
@@ -40,7 +39,7 @@ export function handleDraftError(
   options: OutputOptions,
 ): never {
   if (error instanceof ApiError) {
-    const description = parseApiErrorDescription(error.body) ?? error.body
+    const description = error.description ?? error.body
 
     if (error.status === 404) {
       outputError(description, {
