@@ -15,6 +15,7 @@ import {
 import {
   mailboxFiltersCreateCommand,
   mailboxFiltersDeleteCommand,
+  mailboxFiltersGetCommand,
   mailboxFiltersListCommand,
   mailboxFiltersUpdateCommand,
 } from './commands/mailbox/filters.js'
@@ -62,6 +63,9 @@ import { driveFolderRenameCommand } from './commands/drive/folder/rename.js'
 import { driveFolderMoveCommand } from './commands/drive/folder/move.js'
 import { driveFolderTrashCommand } from './commands/drive/folder/trash.js'
 import { driveFolderDeleteCommand } from './commands/drive/folder/delete.js'
+import { driveShareCreateCommand } from './commands/drive/share/create.js'
+import { driveShareGetCommand } from './commands/drive/share/get.js'
+import { driveShareRevokeCommand } from './commands/drive/share/revoke.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { feedbackCommand } from './commands/feedback.js'
 import { installSkillCommand, printSkillCommand } from './commands/install-skill.js'
@@ -191,6 +195,16 @@ mailboxFilters
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only filter UUIDs, one per line (for piping)')
   .action(mailboxFiltersListCommand)
+
+mailboxFilters
+  .command('get')
+  .description('Show a single filter rule, including its full condition_ast and actions')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .argument('<filter-uuid>', 'Filter UUID (from `cirrux mailbox filters list`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the filter UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux mailbox filters get <mailbox-uuid> <filter-uuid> --json')
+  .action(mailboxFiltersGetCommand)
 
 mailboxFilters
   .command('create')
@@ -617,6 +631,37 @@ driveFolder
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the deleted folder UUID (for piping)')
   .action(driveFolderDeleteCommand)
+
+const driveShare = drive
+  .command('share')
+  .description('Manage public download links for files and folders')
+
+driveShare
+  .command('create')
+  .description('Create a public download link for a file (or a folder with --folder)')
+  .argument('<uuid>', 'Drive file or folder UUID')
+  .option('--folder', 'Target a folder instead of a file')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the public link URL (for piping)')
+  .action(driveShareCreateCommand)
+
+driveShare
+  .command('get')
+  .description('Show sharing settings (grants + public link) for a file (or a folder with --folder)')
+  .argument('<uuid>', 'Drive file or folder UUID')
+  .option('--folder', 'Target a folder instead of a file')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the public link URL, if any (for piping)')
+  .action(driveShareGetCommand)
+
+driveShare
+  .command('revoke')
+  .description('Revoke the public link for a file (or a folder with --folder)')
+  .argument('<uuid>', 'Drive file or folder UUID')
+  .option('--folder', 'Target a folder instead of a file')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the resource UUID (for piping)')
+  .action(driveShareRevokeCommand)
 
 const skill = program
   .command('skill')

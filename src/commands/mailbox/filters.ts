@@ -119,6 +119,26 @@ export async function mailboxFiltersListCommand(
   }
 }
 
+export async function mailboxFiltersGetCommand(
+  mailboxUuid: string,
+  filterUuid: string,
+  options: OutputOptions,
+): Promise<void> {
+  requireCredentials(options)
+
+  try {
+    const filter = await authedRequest<Filter>(filtersPath(mailboxUuid, filterUuid))
+
+    output(filter as unknown as Record<string, unknown>, {
+      ...options,
+      text: `${filter.uuid}\t${filter.status}\t${filter.name}`,
+      quietValue: filter.uuid,
+    })
+  } catch (error) {
+    handleFilterError(error, options, { action: 'Get filter', notFound: `Filter '${filterUuid}' not found.` })
+  }
+}
+
 export async function mailboxFiltersCreateCommand(
   mailboxUuid: string,
   options: FilterWriteOptions,

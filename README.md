@@ -92,6 +92,12 @@ cirrux drive upload --file ./notes.txt --name renamed.txt --content-type text/pl
 # Trash (reversible) or permanently delete a file
 cirrux drive trash <file-uuid>
 cirrux drive delete <file-uuid>
+
+# Create a public download link (anyone with the link can download, no login)
+cirrux drive share create <file-uuid>
+cirrux drive share create <folder-uuid> --folder
+cirrux drive share get <file-uuid>
+cirrux drive share revoke <file-uuid>
 ```
 
 ### Commands
@@ -118,6 +124,9 @@ cirrux drive delete <file-uuid>
 | `cirrux drive upload [folder-uuid] --file <path>`                     | Encrypt locally and upload, 2 GB max (`--name`, `--content-type`)                                    |
 | `cirrux drive trash <file-uuid>`                                      | Move a file to the trash (reversible, idempotent)                                                    |
 | `cirrux drive delete <file-uuid>`                                     | Permanently delete a file (idempotent)                                                               |
+| `cirrux drive share create <uuid> [--folder]`                         | Create a public download link for a file or folder (anyone with the link, no login)                  |
+| `cirrux drive share get <uuid> [--folder]`                            | Show sharing settings (grants + public link) for a file or folder                                    |
+| `cirrux drive share revoke <uuid> [--folder]`                         | Revoke the public link for a file or folder                                                          |
 | `cirrux skill install` / `cirrux skill print`                         | Install or preview the bundled agent skill                                                           |
 
 Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `in:inbox`/`in:sent`/`in:drafts`/`in:archive`/`in:snoozed`/`in:starred`, `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.

@@ -112,6 +112,7 @@ Server-side filter rules that run on incoming mail, the same engine the webmail 
 
 ```bash
 cirrux mailbox filters list <mailbox-uuid>                    # list rules (uuid, status, name), ordered by priority
+cirrux mailbox filters get <mailbox-uuid> <filter-uuid>      # show one rule, incl. its full condition_ast and actions
 cirrux mailbox filters create <mailbox-uuid> --name "Invoices" \
     --condition-ast '{"type":"contains","field":"from","value":"@billing.example.com"}' \
     --actions '[{"type":"add_label","label_uuid":"<label-uuid>"},{"type":"skip_inbox"}]'
@@ -269,7 +270,14 @@ cirrux drive folder move <folder-uuid> --to <parent-uuid>     # move a folder un
 cirrux drive folder move <folder-uuid> --root       # move a folder to the root
 cirrux drive folder trash <folder-uuid>             # move a folder to the trash (reversible, idempotent)
 cirrux drive folder delete <folder-uuid>            # delete a folder (idempotent)
+
+cirrux drive share create <file-uuid>               # public download link (anyone with the link, no login)
+cirrux drive share create <folder-uuid> --folder    # public link for a folder (browsable listing)
+cirrux drive share get <file-uuid>                  # show grants + public link (--folder for a folder)
+cirrux drive share revoke <file-uuid>               # revoke the public link (--folder for a folder)
 ```
+
+`cirrux drive share create` returns the public URL (`drive.cirrux.co/s/<token>`). The link's `status` starts as `pending` while Cirrux prepares the link. Use `--folder` on any `share` command to target a folder instead of a file. Revoking the link (or deleting the file/folder) invalidates the link immediately.
 
 `cirrux drive download` writes raw bytes to stdout (like `attachment download`) — pipe to a file with `> out`, or use `--output <path>` to stream straight to a file (preferred for large files). Listing is **single-level, folder by folder** — folders print with a trailing `/`, then files; there's no recursive tree. Upload and download are capped at **2 GB** per file.
 

@@ -23,6 +23,41 @@ export interface DriveFolder {
   color: string | null
 }
 
+export interface DrivePublicLink {
+  object: string
+  uuid: string
+  resource_type: string
+  resource_uuid: string
+  token: string
+  url: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DriveAccessGrant {
+  object: string
+  uuid: string
+  principal_type: string
+  principal_user_uuid: string | null
+  principal_email: string | null
+  role: string
+  status: string
+}
+
+export interface DriveSharing {
+  object: string
+  resource_type: string
+  resource_uuid: string
+  accesses: DriveAccessGrant[]
+  public_link: DrivePublicLink | null
+}
+
+/** Resolve the public API path segment for a resource kind. */
+export function resourceKind(options: { folder?: boolean }): 'files' | 'folders' {
+  return options.folder ? 'folders' : 'files'
+}
+
 /** The chunked multipart route caps files at 2 GiB (server-enforced). */
 export const DRIVE_MAX_BYTES = 2 * 1024 * 1024 * 1024
 
@@ -117,6 +152,15 @@ export function handleDriveError(
         ...options,
         code: ExitCode.USAGE_ERROR,
         errorType: 'invalid_move',
+      })
+    }
+
+    if (error.status === 409 && error.body.includes('public_link_exists')) {
+      outputError(`${context.action} failed: a public link already exists for this resource.`, {
+        ...options,
+        code: ExitCode.CONFLICT,
+        errorType: 'public_link_exists',
+        hint: "Use 'cirrux drive share get' to see it, or revoke it first.",
       })
     }
 
