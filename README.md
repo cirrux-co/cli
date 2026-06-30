@@ -99,6 +99,7 @@ cirrux drive delete <file-uuid>
 | Command                                                               | What it does                                                                                         |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `cirrux login` / `cirrux logout` / `cirrux whoami`                    | Browser OAuth (`--no-browser` for headless/remote machines), sign out, show current user + workspace |
+| `cirrux feedback [message]`                                           | Send feedback about Cirrux or the CLI to the team (reads stdin if no message)                         |
 | `cirrux mailbox list`                                                 | List mailboxes you have access to                                                                    |
 | `cirrux mailbox get <mailbox-uuid>`                                   | Mailbox metadata                                                                                     |
 | `cirrux thread list <mailbox-uuid>`                                   | List threads in a mailbox (`--label`, `--limit`, `--cursor`)                                         |

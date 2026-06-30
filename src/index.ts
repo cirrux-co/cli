@@ -63,6 +63,7 @@ import { driveFolderMoveCommand } from './commands/drive/folder/move.js'
 import { driveFolderTrashCommand } from './commands/drive/folder/trash.js'
 import { driveFolderDeleteCommand } from './commands/drive/folder/delete.js'
 import { whoamiCommand } from './commands/whoami.js'
+import { feedbackCommand } from './commands/feedback.js'
 import { installSkillCommand, printSkillCommand } from './commands/install-skill.js'
 import { checkForUpdate } from './update-check.js'
 import { CLI_VERSION } from './version.js'
@@ -98,6 +99,14 @@ program
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the username (for piping)')
   .action(whoamiCommand)
+
+program
+  .command('feedback')
+  .description('Send feedback about Cirrux or this CLI to the team')
+  .argument('[message]', 'Your feedback (omit to read it from stdin)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only "ok" on success (for piping)')
+  .action(feedbackCommand)
 
 const mailbox = program
   .command('mailbox')

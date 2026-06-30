@@ -37,6 +37,26 @@ cirrux --co-author claude-reviewer email archive <uuid>
 
 The `CIRRUX_CO_AUTHOR` env var also works as a fallback for non-Claude automation. Order of precedence: `--co-author` flag → `CIRRUX_CO_AUTHOR` env var → auto-detected `claude`.
 
+## Sending feedback
+
+If you hit a rough edge in the CLI, a missing command, a confusing flag, an API that didn't behave, or you just have a suggestion, pass it straight to the team:
+
+```bash
+cirrux feedback "the email search command should support date ranges"
+```
+
+The message can also come from stdin, which is handy for longer notes:
+
+```bash
+cat notes.md | cirrux feedback
+```
+
+This goes through the same path as the in-app feedback button (it emails the Cirrux team). Your co-author tag rides along, so the team can tell agent feedback apart from a human's. Use it whenever something would have been easier with a different CLI surface, rather than working around it silently.
+
+**Ask before you send.** Feedback leaves the machine and reaches the Cirrux team, so it's a good idea to check with the user first: show them the message you intend to send and confirm they're OK with it. If they grant permission, store that in your memory so you don't have to ask every time, then send freely from then on.
+
+**Never include personal or private information (PII) in feedback.** Keep the message about the CLI, API, or product itself. Do not paste email contents, addresses, names, phone numbers, message bodies, attachment contents, tokens, credentials, or anything else that identifies a person or exposes private data, not even as an "example." If you need to reference a case, describe the behavior abstractly (e.g. "searching by a recipient address returned no results") rather than quoting the real data.
+
 ## Output modes
 
 Every data-producing command supports three output modes:
