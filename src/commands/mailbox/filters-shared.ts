@@ -1,7 +1,6 @@
-import { ApiError } from '../../api.js'
+import { ApiError, parseApiErrorDescription } from '../../api.js'
 import { ExitCode } from '../../exit-codes.js'
 import { outputError, type OutputOptions } from '../../output.js'
-import { parseApiErrorDescription } from '../email/labels.js'
 
 export { requireCredentials } from './labels-shared.js'
 
