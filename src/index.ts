@@ -53,6 +53,7 @@ import { driveListCommand } from './commands/drive/list.js'
 import { driveGetCommand } from './commands/drive/get.js'
 import { driveDownloadCommand } from './commands/drive/download.js'
 import { driveUploadCommand } from './commands/drive/upload.js'
+import { driveReplaceCommand } from './commands/drive/replace.js'
 import { driveTrashCommand } from './commands/drive/trash.js'
 import { driveDeleteCommand } from './commands/drive/delete.js'
 import { driveRenameCommand } from './commands/drive/rename.js'
@@ -90,6 +91,7 @@ program
   .command('login')
   .description('Authenticate with Cirrux via browser')
   .option('--no-browser', 'Sign in without a local browser (for headless/remote machines)')
+  .option('--json', 'Emit machine-readable JSON events (device code, then result) on stdout')
   .action(loginCommand)
 
 program
@@ -186,7 +188,7 @@ const conditionAstHelp =
   'hasattachment/isreply/fromcontact ({"value":<bool>}), sizegreaterthan/sizelessthan ({"bytes":<int>}), ' +
   'fromcontactgroup ({"contact_group_uuid":"..."}).\n' +
   'action types: add_label ({"label_uuid"}), skip_inbox, mark_read (opt value), flag (opt value), ' +
-  'archive, delete, forward ({"forwarding_address_uuid"}).'
+  'archive, delete, forward ({"forwarding_address_uuid"}), never_mark_as_spam.'
 
 mailboxFilters
   .command('list')
@@ -539,6 +541,16 @@ drive
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the new file UUID (for piping)')
   .action(driveUploadCommand)
+
+drive
+  .command('replace')
+  .description("Replace a file's contents in place, keeping its UUID (encrypts locally; 2 GB max)")
+  .argument('<uuid>', 'Drive file UUID')
+  .requiredOption('--file <path>', 'Path to the replacement file')
+  .option('--content-type <type>', 'Override the MIME type (defaults to keeping the existing one)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the file UUID (for piping)')
+  .action(driveReplaceCommand)
 
 drive
   .command('trash')

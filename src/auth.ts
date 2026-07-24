@@ -33,19 +33,62 @@ interface DeviceAuthorizationResponse {
 
 export interface LoginOptions {
   noBrowser?: boolean
+  json?: boolean
+}
+
+interface ProfileResponse {
+  user?: { uuid: string; username: string; first_name: string; last_name: string }
+  workspace?: { uuid: string; name: string }
+}
+
+// In --json mode stdout is reserved for structured events, so human-readable
+// progress notices go to stderr instead.
+function notice(message: string, json: boolean): void {
+  ;(json ? process.stderr : process.stdout).write(message + '\n')
+}
+
+// The structured line emitted (in --json mode) before the device flow blocks on
+// polling, so an agent can read the code deterministically as the first line.
+export function deviceCodeEvent(device: DeviceAuthorizationResponse) {
+  return {
+    event: 'device_code' as const,
+    user_code: device.user_code,
+    verification_uri: device.verification_uri,
+    expires_in: device.expires_in,
+  }
+}
+
+// The final structured line emitted (in --json mode) once login completes.
+export function loggedInEvent(profile: ProfileResponse & { workspace: { uuid: string; name: string } }, scopes?: string[]) {
+  return {
+    event: 'logged_in' as const,
+    workspace: { uuid: profile.workspace.uuid, name: profile.workspace.name },
+    ...(profile.user
+      ? {
+          user: {
+            uuid: profile.user.uuid,
+            username: profile.user.username,
+            first_name: profile.user.first_name,
+            last_name: profile.user.last_name,
+          },
+        }
+      : {}),
+    ...(scopes ? { scopes } : {}),
+  }
 }
 
 export async function login(options: LoginOptions = {}): Promise<void> {
+  const json = options.json ?? false
   if (options.noBrowser || isHeadless()) {
-    await loginViaDeviceCode()
+    await loginViaDeviceCode(json)
   } else {
-    await loginViaBrowser()
+    await loginViaBrowser(json)
   }
 }
 
 // Default flow for machines with a local browser: spin up a temporary loopback
 // listener and complete the PKCE authorization-code flow in the browser.
-async function loginViaBrowser(): Promise<void> {
+async function loginViaBrowser(json: boolean): Promise<void> {
   const codeVerifier = generateCodeVerifier()
   const codeChallenge = generateCodeChallenge(codeVerifier)
 
@@ -74,15 +117,16 @@ async function loginViaBrowser(): Promise<void> {
     throw new Error('No authorization URL returned')
   }
 
-  console.log('Opening browser for authentication...')
-  console.log(`If the browser doesn't open, visit: ${authResponse.authorization_url}`)
+  notice('Opening browser for authentication...', json)
+  notice(`If the browser doesn't open, visit: ${authResponse.authorization_url}`, json)
   try {
     await open(authResponse.authorization_url)
   } catch {
     // No browser launcher available (e.g. a headless server). The URL is
     // already printed above; keep waiting in case the user opens it manually.
-    console.log(
+    notice(
       "Couldn't open a browser automatically. Open the URL above, or re-run with `cirrux login --no-browser` on remote machines.",
+      json,
     )
   }
 
@@ -121,13 +165,13 @@ async function loginViaBrowser(): Promise<void> {
     },
   })
 
-  await finishLogin(tokenResponse)
+  await finishLogin(tokenResponse, json)
 }
 
 // Headless flow (OAuth 2.0 Device Authorization Grant, RFC 8628): the user
 // opens a verification URL on any device and types a short code; meanwhile the
 // CLI polls until the authorization is approved. No inbound redirect required.
-async function loginViaDeviceCode(): Promise<void> {
+async function loginViaDeviceCode(json: boolean): Promise<void> {
   const codeVerifier = generateCodeVerifier()
   const codeChallenge = generateCodeChallenge(codeVerifier)
 
@@ -139,15 +183,23 @@ async function loginViaDeviceCode(): Promise<void> {
     },
   })
 
-  console.log('\nTo sign in, open this URL in a browser on any device:\n')
-  console.log(`    ${device.verification_uri}\n`)
-  console.log('and enter the code:\n')
-  console.log(`    ${device.user_code}\n`)
-  console.log('Waiting for you to authorize...')
+  // Emit the code the moment we have it, before the blocking poll. In --json
+  // mode this is a single structured line on stdout so an agent harness can read
+  // it deterministically as the first line, act on it, then wait for the same
+  // process to exit on approval, no backgrounding or output-scraping required.
+  if (json) {
+    process.stdout.write(JSON.stringify(deviceCodeEvent(device)) + '\n')
+  } else {
+    notice('\nTo sign in, open this URL in a browser on any device:\n', json)
+    notice(`    ${device.verification_uri}\n`, json)
+    notice('and enter the code:\n', json)
+    notice(`    ${device.user_code}\n`, json)
+    notice('Waiting for you to authorize...', json)
+  }
 
   const tokenResponse = await pollForDeviceToken({ device, codeVerifier })
 
-  await finishLogin(tokenResponse)
+  await finishLogin(tokenResponse, json)
 }
 
 async function pollForDeviceToken({
@@ -202,19 +254,17 @@ async function pollForDeviceToken({
 
 // Shared tail for both login flows: resolve the workspace, persist credentials,
 // and print a confirmation.
-async function finishLogin(tokenResponse: TokenResponse): Promise<void> {
+async function finishLogin(tokenResponse: TokenResponse, json: boolean): Promise<void> {
   // We need to get workspace info from the token's grant
   // For now, fetch the profile to get workspace details
-  const profile = await apiRequest<{
-    user?: { uuid: string; username: string; first_name: string; last_name: string }
-    workspace?: { uuid: string; name: string }
-  }>('public_api/v1/user/profile', {
+  const profile = await apiRequest<ProfileResponse>('public_api/v1/user/profile', {
     token: tokenResponse.access_token,
   })
 
   if (!profile.workspace) {
     throw new Error('No workspace associated with this login. The grant may not have a workspace.')
   }
+  const workspace = profile.workspace
 
   saveWorkspaceCredentials({
     workspace_uuid: profile.workspace.uuid,
@@ -226,8 +276,13 @@ async function finishLogin(tokenResponse: TokenResponse): Promise<void> {
     api_url: apiUrl(),
   })
 
+  if (json) {
+    process.stdout.write(JSON.stringify(loggedInEvent({ ...profile, workspace }, tokenResponse.scopes)) + '\n')
+    return
+  }
+
   console.log(`\nLogged in successfully!`)
-  console.log(`Workspace: ${profile.workspace.name}`)
+  console.log(`Workspace: ${workspace.name}`)
   if (profile.user) {
     console.log(`User: ${profile.user.first_name} ${profile.user.last_name} (${profile.user.username})`)
   }

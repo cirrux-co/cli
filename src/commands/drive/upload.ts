@@ -58,10 +58,6 @@ export async function driveUploadCommand(
     })
   }
 
-  if (size === 0) {
-    outputError('File is empty.', { ...options, code: ExitCode.USAGE_ERROR, errorType: 'usage_error' })
-  }
-
   if (size > DRIVE_MAX_BYTES) {
     outputError('File is too large (2 GB max).', {
       ...options,
@@ -88,6 +84,19 @@ export async function driveUploadCommand(
   }
 }
 
+// The request the CLI sends for a 0-byte file: the simple server-side route
+// with empty base64 data. Kept pure so it can be unit-tested without HTTP.
+export function emptyUploadRequest(args: {
+  folderUuid: string | undefined
+  name: string
+  contentType: string
+}): { path: string; body: { folder_uuid: string | undefined; name: string; content_type: string; data: string } } {
+  return {
+    path: 'public_api/v1/drive/files',
+    body: { folder_uuid: args.folderUuid, name: args.name, content_type: args.contentType, data: '' },
+  }
+}
+
 // Runs the chunked multipart upload: init → presign parts → encrypt+PUT each
 // chunk straight to S3 → complete (which returns the finished file's metadata).
 // The file is read and encrypted one chunk at a time, so memory stays flat
@@ -104,6 +113,14 @@ async function uploadFile(args: {
   options: UploadOptions
 }): Promise<DriveFile> {
   const { path, folderUuid, name, contentType, size, options } = args
+
+  // A 0-byte file has no chunks to encrypt and PUT, and S3 multipart can't
+  // complete with zero parts. The simple server-side route handles it in one
+  // call and returns the finished file directly.
+  if (size === 0) {
+    const { path: emptyPath, body } = emptyUploadRequest({ folderUuid, name, contentType })
+    return await authedRequest<DriveFile>(emptyPath, { method: 'POST', body })
+  }
 
   const init = await authedRequest<UploadInit>('public_api/v1/drive/uploads', {
     method: 'POST',

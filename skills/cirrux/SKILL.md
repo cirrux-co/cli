@@ -25,6 +25,30 @@ cirrux logout
 
 Commands that hit the API fail with exit code `4` (`AUTH_REQUIRED`) when the user is not logged in. Suggest `cirrux login` in that case.
 
+### Logging in from an agent / headless machine
+
+On desktop, `cirrux login` opens a browser. On a headless or remote machine (no display, or over SSH) it automatically falls back to the OAuth device-code flow: it prints a short code and a URL, then **blocks in the same process** while polling until the user approves. It exits on its own once approval lands.
+
+If you're driving the CLI as an agent, run login with `--json` so you can read the code deterministically instead of scraping prose:
+
+```bash
+cirrux login --no-browser --json
+```
+
+This emits one structured line on stdout **before** it starts blocking:
+
+```json
+{"event":"device_code","user_code":"ABCD-EFGH","verification_uri":"https://cirrux.co/device","expires_in":900}
+```
+
+Read that first line, surface the `user_code` and `verification_uri` to the user, and ask them to approve. Keep the same process running (background it and wait, don't kill it). When they approve, the process prints a final line and exits `0`:
+
+```json
+{"event":"logged_in","workspace":{"uuid":"...","name":"..."},"user":{"uuid":"...","username":"...","first_name":"...","last_name":"..."},"scopes":["email.read","..."]}
+```
+
+`--no-browser` forces the device-code flow even on a desktop; on a truly headless machine it's the default and the flag is optional. In `--json` mode all human-readable progress notices go to stderr, so stdout carries only the two JSON events above.
+
 ## Attribution
 
 When invoked from inside Claude Code, the CLI auto-detects the `CLAUDECODE=1` environment variable and tags every mutation with co-author `claude` — no action needed from you. This shows up in the user's activity feed so they can tell which actions came from you (vs. their own).
@@ -142,6 +166,7 @@ cirrux mailbox filters delete <mailbox-uuid> <filter-uuid>
 - `{"type":"mark_read","value":true}` / `{"type":"flag","value":true}` (`value` optional, defaults true)
 - `{"type":"archive"}`, `{"type":"delete"}`
 - `{"type":"forward","forwarding_address_uuid":"..."}` — only works when forwarding is enabled for the workspace
+- `{"type":"never_mark_as_spam"}` — always deliver matching messages, even if the spam filter would flag them
 
 Example — file invoices from a sender under a label and out of the inbox, OR-ing two senders:
 
@@ -230,6 +255,8 @@ cirrux draft send <draft-uuid>                                         # send a 
 - **`--file` / stdin** — a full RFC 5322 MIME message (headers + blank line + body). The `From:` header must be one of the mailbox's configured addresses (or its primary address); the API rejects spoofed senders with 422.
 - **`--markdown <path>`** — a markdown file used as the draft body. Headers come from `--subject`, `--to`, `--cc`, `--bcc` (each address is repeatable, `Name <addr>` or just `addr`). The backend renders markdown to HTML via Kramdown (defaults), converts to the editor's structured body format, and synthesizes the MIME — `From:` is set to the mailbox's primary address automatically. Bcc is preserved on the draft record but stripped from the rendered MIME, matching webmail compose behavior.
 
+**Attachments on outgoing mail:** there is no `--attach` flag, and markdown mode cannot carry files. The **only** way to send an attachment is to build a complete, valid MIME message yourself (a `multipart/mixed` body with each file as a base64-encoded part, `Content-Disposition: attachment`) and pass it via `--file` / stdin. When you do, the backend decodes and stores those parts, so the resulting draft sends normally. A malformed or truncated MIME will either be rejected or silently drop the part — supply well-formed MIME. The `attachment` commands below are download-only and do not add files to a draft.
+
 Supply `--in-reply-to <email-uuid>` (in either mode) to link the draft to a parent email — it must belong to the same workspace. The response is the new draft (uuid, headers, body_html, body_text, labels include `draft`).
 
 `draft delete` returns 204 with no body. Deleting an email that isn't a draft returns 422 (`not_a_draft`); deleting a non-existent draft returns 404.
@@ -237,6 +264,8 @@ Supply `--in-reply-to <email-uuid>` (in either mode) to link the draft to a pare
 `draft send` requires the `email.send` OAuth scope (separate from `email.write`) — if the CLI was logged in before send was supported, run `cirrux logout && cirrux login` to re-grant. The response is the resulting email (no longer a draft: `sent` label applied, `draft` label removed). The draft must have at least one recipient; sending one with no `To`/`Cc`/`Bcc` returns 422 (`invalid_value`). Sending a non-draft returns 422 (`not_a_draft`); a draft with a future `send_draft_at` already scheduled returns 422 (`already_scheduled`).
 
 ### Attachment
+
+These commands are **download-only** (reading attachments off received mail). To *send* an attachment, embed it in a MIME message passed to `draft create --file` — see the note under [Draft](#draft).
 
 ```bash
 cirrux attachment get <attachment-uuid>                # attachment metadata (filename, content-type, size)
@@ -256,6 +285,7 @@ cirrux drive download <file-uuid> --json            # JSON with base64url-encode
 cirrux drive upload --file ./report.pdf             # upload to the root (filename from the path)
 cirrux drive upload <folder-uuid> --file ./a.png    # upload into a folder
 cirrux drive upload --file ./a.bin --name out.bin --content-type application/octet-stream
+cirrux drive replace <file-uuid> --file ./report-v2.pdf   # replace a file's contents, keeping its UUID
 cirrux drive trash <file-uuid>                      # move a file to the trash (reversible, idempotent)
 cirrux drive delete <file-uuid>                     # delete a file (idempotent)
 cirrux drive rename <file-uuid> new-name.pdf        # rename a file
@@ -307,7 +337,7 @@ Supported query operators (ANDed by default, prefix with `-` to negate):
 | `is:starred` / `is:unstarred` | `is:starred`                                                                 |
 | `is:replied`                  | `is:replied`                                                                 |
 | `has:attachment`              | `has:attachment`                                                             |
-| `in:`                         | `in:inbox`, `in:sent`, `in:drafts`, `in:archive`, `in:snoozed`, `in:starred` |
+| `in:`                         | `in:inbox`, `in:sent`, `in:drafts`, `in:archive`, `in:trash`, `in:spam`, `in:snoozed`, `in:starred` |
 | `after:` / `before:`          | `after:2026-01-01 before:2026-04-01`                                         |
 | Bare term                     | `invoice` (full-text)                                                        |
 | Phrase                        | `"monthly report"`                                                           |
@@ -434,4 +464,4 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `trash` / `delete` / `rename` / `move` for files and `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders. Snoozing and Drive sharing are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links. Snoozing is not yet exposed — say so rather than fabricating commands.
