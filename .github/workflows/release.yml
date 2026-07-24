@@ -31,9 +31,12 @@ jobs:
         with:
           version: 9
 
+      # tsdown requires Node >= 22.18 (it calls Promise.withResolvers). This is
+      # only the build host: the bundle still targets node20 (tsdown.config.ts)
+      # and ships as a bun-compiled binary.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22.x'
 
       - uses: oven-sh/setup-bun@v2
         with:
