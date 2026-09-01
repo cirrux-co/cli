@@ -14,6 +14,16 @@ export default defineConfig({
   format: ['esm'],
   target: 'node20',
   clean: true,
+  // This package is a binary, not a library: it is private, has no exports/types
+  // entry, and nothing imports it, so the declaration output was an empty
+  // `export {}`. Generating it runs rolldown-plugin-dts, which declares
+  // `peerDependencies: typescript@^5 || ^6` and reads a compiler host the
+  // TypeScript 7 API no longer provides — it dies on `useCaseSensitiveFileNames`
+  // of undefined. The monorepo lockfile happens to pin a rolldown old enough to
+  // dodge it; the standalone cirrux-co/cli repo resolves fresh and did not.
+  // Nothing consumes the types, so don't emit them rather than pinning around an
+  // incompatibility that would resurface.
+  dts: false,
   outExtensions: () => ({ js: '.js' }),
   loader: {
     '.md': 'text',
