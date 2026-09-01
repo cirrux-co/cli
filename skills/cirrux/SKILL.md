@@ -1,11 +1,11 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments) or Drive files (list, download, upload, trash, delete) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments), Drive files (list, download, upload, trash, delete), or calendars (list calendars, read what is on a day or week) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
 
-`cirrux` is the command-line interface for [Cirrux](https://cirrux.co) email. Use it to authenticate, browse mailboxes and threads, read individual emails, download attachments, and manage Drive files.
+`cirrux` is the command-line interface for [Cirrux](https://cirrux.co) email. Use it to authenticate, browse mailboxes and threads, read individual emails, download attachments, manage Drive files, and read calendars.
 
 ## Prerequisite: check it's installed
 
@@ -313,6 +313,30 @@ cirrux drive share revoke <file-uuid>               # revoke the public link (--
 
 `drive trash` / `drive delete` and `drive rename` / `drive move` operate on **files**; the matching folder operations live under the `drive folder` noun group (`create` / `get` / `rename` / `move` / `trash` / `delete`). All are idempotent where it makes sense. Folder `trash` does **not** cascade to its contents (they stay visible under a Trash view), mirroring file trash. Moving a folder into itself or one of its own subfolders fails with exit code `2` (`invalid_move`). Names must be unique within a folder (Drive behaves like a filesystem): an `upload`, `rename`, `move`, or folder `create` that would collide with an existing live item in the destination fails with exit code `5` (`name_taken`) — retry with a different name (`--name` on upload, or a new name argument). A duplicate of a **trashed** item is fine; only live items conflict. Drive needs the `drive.read` / `drive.create` / `drive.update` / `drive.delete` OAuth scopes — rename/move require `drive.update`; if the CLI was logged in before these were added, a Drive command will fail with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
 
+### Calendar
+
+```bash
+cirrux calendar list                                          # calendars the user can see (uuid, name, role)
+cirrux calendar events list <calendar-uuid>                   # events in the next 31 days
+cirrux calendar events list <calendar-uuid> --days 1          # today
+cirrux calendar events list <calendar-uuid> --days 7          # the next week
+cirrux calendar events list <calendar-uuid> --from 2026-09-01 --to 2026-09-08   # an explicit window
+cirrux calendar events list <calendar-uuid> --timezone Europe/Amsterdam         # resolve the window in a zone
+cirrux calendar events list <calendar-uuid> --limit 50 --cursor <cur>           # paging
+```
+
+**Recurring events are already expanded.** A weekly standup is stored as one row with an RRULE, but the endpoint returns one item per week in the window, so "what is on Tuesday" is answerable directly. You never have to interpret a recurrence rule; the series' RRULE is echoed on each instance as `recurrence` for reference.
+
+**Every item has an `id` that names one occurrence:** `<uuid>` for a one-off, `<series-uuid>_<recurrence-id>` for an instance of a series (e.g. `4f2b...9a1c_20260909T070000Z`, or `..._20260909` for an all-day series). Pass it back whole; don't parse it or build one. `event_uuid` and `series_uuid` are separate fields for when you need the underlying rows. An instance that was individually edited has `is_exception: true` and keeps the id of the slot it replaces, so it stays addressable even after being dragged to another day.
+
+**All-day events use `start.date` / `end.date`, and the end date is exclusive** (iCalendar DTEND): a one-day event on 2026-09-02 has `end.date` of 2026-09-03. Timed events use `start.date_time` (an absolute UTC instant) plus `start.time_zone` (the event's own IANA zone), so a "09:00 Amsterdam" meeting stays at 09:00 local across a DST change even though its UTC instant shifts.
+
+The window defaults to now through 31 days out and may not exceed 366 days; `--days` and `--to` are mutually exclusive. `--from` / `--to` take an ISO-8601 timestamp or a bare `YYYY-MM-DD` (start of day in the window's timezone). A window we can't act on (inverted, too wide, unparseable, unknown timezone) is rejected with exit code `2`. Results are ordered by start time with all-day and timed events interleaved; page with `--cursor` while `has_more` is true.
+
+`cirrux calendar list` returns **one entry per mailbox a calendar is linked to**, because the name, colour and position are per-mailbox. A calendar shared into two of the user's mailboxes appears twice with the same `calendar_uuid` and different `uuid` — pass the `calendar_uuid` (which is what `--quiet` emits) to `events list`. `role` is `owner` / `editor` / `viewer`; `can_write` says whether writing would be allowed.
+
+Calendar reads need the `calendar.read` OAuth scope. If the CLI was logged in before that scope existed, a calendar command fails with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant. Calendar access is read-only today; there are no create/update/delete commands, so say so rather than fabricating them.
+
 ## Search
 
 `cirrux thread search "<query>"` and `cirrux email search "<query>"` both hit the same search engine — the difference is the grouping of results. Use `thread search` when the user cares about conversations, `email search` when they care about individual messages (e.g. "find every email with an attachment").
@@ -345,6 +369,10 @@ Supported query operators (ANDed by default, prefix with `-` to negate):
 
 Results exclude trash and junk automatically. Quote the whole query when it contains spaces or shell metacharacters: `cirrux thread search "from:alice is:unread"`.
 
+**Every operator needs a value.** `before:` on its own is rejected with exit code `2`; write the whole pair or leave it out.
+
+**Dates only ever reach search through `after:` / `before:`, written as `YYYY-MM-DD`.** A month name or a loose date is a bare term matched against the message *text*, not against its date. `after:` includes the whole day you name, `before:` excludes it, so "everything from April 2023" is `after:2023-04-01 before:2023-05-01` — not `April 2023`, and not those two dates as bare terms.
+
 ## Common workflows
 
 **Show the latest inbox threads for the user's first mailbox:**
@@ -352,6 +380,24 @@ Results exclude trash and junk automatically. Quote the whole query when it cont
 ```bash
 mb=$(cirrux mailbox list --quiet | head -1)
 cirrux thread list "$mb" --label inbox --limit 10
+```
+
+**Show what is on the user's calendar today:**
+
+```bash
+cal=$(cirrux calendar list --quiet | head -1)
+cirrux calendar events list "$cal" --days 1
+```
+
+**Pull a week as JSON, keeping only the timed meetings the user has to attend:**
+
+```bash
+cal=$(cirrux calendar list --json | jq -r '.data[] | select(.is_default) | .calendar_uuid' | head -1)
+
+# Recurring series come back already expanded, so this is every actual meeting in the week —
+# no RRULE interpretation needed.
+cirrux calendar events list "$cal" --days 7 --json \
+  | jq -r '.data[] | select(.all_day | not) | "\(.start.date_time)  \(.title)"'
 ```
 
 **Find a single email by subject in a specific mailbox and apply a verb:**
@@ -464,4 +510,4 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links. Snoozing is not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links. Snoozing and every calendar write are not yet exposed — say so rather than fabricating commands.

@@ -97,6 +97,7 @@ export async function threadSearchCommand(
         outputError(`Invalid query: ${error.description ?? error.body}`, {
           ...options,
           code: ExitCode.USAGE_ERROR,
+          hint: 'Every operator needs a value; filter by date with "after:YYYY-MM-DD before:YYYY-MM-DD".',
           errorType: 'invalid_query',
         })
       }

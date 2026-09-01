@@ -67,6 +67,8 @@ import { driveFolderDeleteCommand } from './commands/drive/folder/delete.js'
 import { driveShareCreateCommand } from './commands/drive/share/create.js'
 import { driveShareGetCommand } from './commands/drive/share/get.js'
 import { driveShareRevokeCommand } from './commands/drive/share/revoke.js'
+import { calendarListCommand } from './commands/calendar/list.js'
+import { calendarEventsListCommand } from './commands/calendar/events/list.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { feedbackCommand } from './commands/feedback.js'
 import { installSkillCommand, printSkillCommand } from './commands/install-skill.js'
@@ -501,6 +503,35 @@ attachment
   .option('--json', 'Output as JSON (base64url-encoded data)')
   .option('--quiet', 'Output only the base64url-encoded data (for piping)')
   .action(attachmentDownloadCommand)
+
+const calendar = program
+  .command('calendar')
+  .description('Read calendars and their events')
+
+calendar
+  .command('list')
+  .description('List calendars the user can see')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only calendar UUIDs, one per line (for piping)')
+  .action(calendarListCommand)
+
+const calendarEvents = calendar
+  .command('events')
+  .description('Read events on a calendar')
+
+calendarEvents
+  .command('list')
+  .description('List events in a time window, with recurring series expanded into occurrences')
+  .argument('<calendar-uuid>', 'Calendar UUID (from `cirrux calendar list`)')
+  .option('--from <date>', 'Start of the window (ISO-8601 or YYYY-MM-DD). Defaults to now')
+  .option('--to <date>', 'End of the window (ISO-8601 or YYYY-MM-DD). Defaults to 31 days after --from')
+  .option('--days <n>', 'Window length in days from --from. Alternative to --to')
+  .option('--timezone <tz>', "IANA timezone for the window and all-day events (default: the user's own)")
+  .option('--limit <n>', 'Occurrences per page, 1-2500 (default 250)')
+  .option('--cursor <cursor>', 'Pagination cursor from a previous response')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only occurrence IDs, one per line (for piping)')
+  .action(calendarEventsListCommand)
 
 const drive = program
   .command('drive')
