@@ -1,7 +1,7 @@
 import { authedRequest } from '../../api.js'
-import { getActiveCredentials } from '../../config.js'
-import { ExitCode } from '../../exit-codes.js'
-import { output, outputError, type OutputOptions } from '../../output.js'
+import { handleApiError } from '../../api-errors.js'
+import { output, type OutputOptions } from '../../output.js'
+import { requireCredentials } from '../../session.js'
 import { formatAddress } from '../thread/list.js'
 
 interface EmailAttachment {
@@ -29,15 +29,7 @@ interface Email {
 }
 
 export async function emailGetCommand(uuid: string, options: OutputOptions): Promise<void> {
-  const creds = getActiveCredentials()
-  if (!creds) {
-    outputError('Not logged in.', {
-      ...options,
-      code: ExitCode.AUTH_REQUIRED,
-      hint: "Run 'cirrux login' first.",
-      errorType: 'auth_required',
-    })
-  }
+  requireCredentials(options)
 
   try {
     const email = await authedRequest<Email>(`public_api/v1/emails/${encodeURIComponent(uuid)}`)
@@ -70,20 +62,10 @@ export async function emailGetCommand(uuid: string, options: OutputOptions): Pro
       quietValue: email.uuid,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-
-    if (message.includes('404')) {
-      outputError(`Email '${uuid}' not found.`, {
-        ...options,
-        code: ExitCode.NOT_FOUND,
-        errorType: 'not_found',
-      })
-    }
-
-    outputError(`Failed to fetch email: ${message}`, {
-      ...options,
-      code: ExitCode.GENERAL_FAILURE,
-      errorType: 'api_error',
+    handleApiError(error, options, {
+      action: 'Fetch email',
+      scope: 'email',
+      notFound: `Email '${uuid}' not found.`,
     })
   }
 }

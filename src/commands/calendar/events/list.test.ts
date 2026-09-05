@@ -126,3 +126,133 @@ test('resolveWindow rejects a --from it cannot read when it has to do the arithm
 
   expect(window).toEqual({ ok: false, message: "Could not read --from 'nonsense' as a date." })
 })
+
+// --- --today / --on ---
+//
+// Anchored to the real current date, never a hardcoded one: a fixed date
+// silently becomes a past date and stops testing what "today" means.
+
+function todayIn(timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const get = (type: string): string => parts.find((part) => part.type === type)?.value ?? ''
+  return `${get('year')}-${get('month')}-${get('day')}`
+}
+
+test('--today spans exactly one calendar day and pins the timezone', () => {
+  const window = resolveWindow({ today: true, timezone: 'Europe/Amsterdam' })
+
+  expect(window.ok).toBe(true)
+  if (!window.ok) return
+  expect(window.timeMin).toBe(todayIn('Europe/Amsterdam'))
+  expect(window.timezone).toBe('Europe/Amsterdam')
+  // Sent as bare dates, so the server resolves both ends to local midnight.
+  expect(window.timeMin).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  expect(window.timeMax).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+})
+
+test('--today resolves the day in the given zone, not the machine zone', () => {
+  const auckland = resolveWindow({ today: true, timezone: 'Pacific/Auckland' })
+  const honolulu = resolveWindow({ today: true, timezone: 'Pacific/Honolulu' })
+
+  expect(auckland.ok && honolulu.ok).toBe(true)
+  if (!auckland.ok || !honolulu.ok) return
+  expect(auckland.timeMin).toBe(todayIn('Pacific/Auckland'))
+  expect(honolulu.timeMin).toBe(todayIn('Pacific/Honolulu'))
+})
+
+test('--today falls back to the machine timezone when none is given', () => {
+  const window = resolveWindow({ today: true })
+
+  expect(window.ok).toBe(true)
+  if (!window.ok) return
+  expect(window.timezone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  expect(window.timeMin).toBe(todayIn(window.timezone as string))
+})
+
+test('--on covers the named day and ends on the next one', () => {
+  const window = resolveWindow({ on: '2026-09-02', timezone: 'UTC' })
+
+  expect(window.ok).toBe(true)
+  if (!window.ok) return
+  expect(window.timeMin).toBe('2026-09-02')
+  expect(window.timeMax).toBe('2026-09-03')
+})
+
+test('--on rolls the month and year correctly', () => {
+  const endOfYear = resolveWindow({ on: '2026-12-31', timezone: 'UTC' })
+  const endOfMonth = resolveWindow({ on: '2026-02-28', timezone: 'UTC' })
+
+  expect(endOfYear.ok && endOfMonth.ok).toBe(true)
+  if (!endOfYear.ok || !endOfMonth.ok) return
+  expect(endOfYear.timeMax).toBe('2027-01-01')
+  expect(endOfMonth.timeMax).toBe('2026-03-01') // 2026 is not a leap year
+})
+
+test('--on rejects anything that is not a calendar date', () => {
+  const window = resolveWindow({ on: '2026-09-02T10:00:00Z' })
+
+  expect(window.ok).toBe(false)
+  if (window.ok) return
+  expect(window.message).toContain('YYYY-MM-DD')
+})
+
+test('--today and --on are mutually exclusive', () => {
+  const window = resolveWindow({ today: true, on: '2026-09-02' })
+
+  expect(window.ok).toBe(false)
+  if (window.ok) return
+  expect(window.message).toContain('not both')
+})
+
+test('--today cannot be combined with the range flags', () => {
+  for (const extra of [{ from: '2026-09-01' }, { to: '2026-09-02' }, { days: '3' }]) {
+    const window = resolveWindow({ today: true, ...extra })
+    expect(window.ok).toBe(false)
+    if (window.ok) continue
+    expect(window.message).toContain('--today')
+  }
+})
+
+// --- --from + --days boundary ---
+
+test('--from as a bare date keeps --days on calendar-day boundaries', () => {
+  const window = resolveWindow({ from: '2026-09-01', days: '1' })
+
+  expect(window.ok).toBe(true)
+  if (!window.ok) return
+  // Bare dates, so the server resolves both to local midnight in the window's
+  // timezone — the same boundary `--from`/`--to` would have given.
+  expect(window.timeMin).toBe('2026-09-01')
+  expect(window.timeMax).toBe('2026-09-02')
+})
+
+test('--from as an instant keeps --days on 24-hour periods', () => {
+  const window = resolveWindow({ from: '2026-09-01T09:30:00Z', days: '2' })
+
+  expect(window.ok).toBe(true)
+  if (!window.ok) return
+  expect(window.timeMin).toBe('2026-09-01T09:30:00.000Z')
+  expect(window.timeMax).toBe('2026-09-03T09:30:00.000Z')
+})
+
+test('--days with no --from is still the next N days from now', () => {
+  const window = resolveWindow({ days: '7' })
+
+  expect(window.ok).toBe(true)
+  if (!window.ok) return
+  const span = Date.parse(window.timeMax as string) - Date.parse(window.timeMin as string)
+  expect(span).toBe(7 * 24 * 60 * 60 * 1000)
+})
+
+test('an explicit --timezone survives a plain --from/--to window', () => {
+  const window = resolveWindow({ from: '2026-09-01', to: '2026-09-08', timezone: 'Europe/Amsterdam' })
+
+  expect(window.ok).toBe(true)
+  if (!window.ok) return
+  expect(window.timezone).toBe('Europe/Amsterdam')
+})

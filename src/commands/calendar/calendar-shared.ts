@@ -1,7 +1,5 @@
-import { ApiError } from '../../api.js'
-import { getActiveCredentials } from '../../config.js'
-import { ExitCode } from '../../exit-codes.js'
-import { outputError, type OutputOptions } from '../../output.js'
+import { handleApiError } from '../../api-errors.js'
+import { type OutputOptions } from '../../output.js'
 
 export interface Calendar {
   object: string
@@ -79,78 +77,16 @@ export interface CalendarEventListResponse {
   data: CalendarEvent[]
 }
 
-export function requireCredentials(options: OutputOptions): void {
-  if (!getActiveCredentials()) {
-    outputError('Not logged in.', {
-      ...options,
-      code: ExitCode.AUTH_REQUIRED,
-      hint: "Run 'cirrux login' first.",
-      errorType: 'auth_required',
-    })
-  }
-}
+export { requireCredentials } from '../../session.js'
 
 /**
- * Map a failed calendar API call to a clear message + exit code. A 403
- * `insufficient_scope` is the common one: every session created before the
- * calendar scopes existed lacks them, so the fix is to log in again.
+ * Map a failed calendar API call to a clear message + exit code. Binds the
+ * scope wording; the ladder itself lives in `api-errors.ts`.
  */
 export function handleCalendarError(
   error: unknown,
   options: OutputOptions,
   context: { action: string; notFound?: string },
 ): never {
-  if (error instanceof ApiError) {
-    if (error.status === 403 && error.body.includes('insufficient_scope')) {
-      outputError('Your session is missing calendar permissions.', {
-        ...options,
-        code: ExitCode.AUTH_REQUIRED,
-        hint: "Run 'cirrux login' again to grant calendar access.",
-        errorType: 'insufficient_scope',
-      })
-    }
-
-    if (error.status === 404) {
-      outputError(context.notFound ?? 'Not found.', {
-        ...options,
-        code: ExitCode.NOT_FOUND,
-        errorType: 'not_found',
-      })
-    }
-
-    if (error.status === 403) {
-      outputError('You do not have permission to perform this action.', {
-        ...options,
-        code: ExitCode.AUTH_REQUIRED,
-        errorType: 'forbidden',
-      })
-    }
-
-    if (error.status === 422) {
-      outputError(`${context.action} failed: ${error.description ?? 'the request was rejected.'}`, {
-        ...options,
-        code: ExitCode.USAGE_ERROR,
-        errorType: 'invalid_range',
-      })
-    }
-
-    if (error.status === 429) {
-      const waitSeconds = error.retryAfterMs !== undefined ? Math.ceil(error.retryAfterMs / 1000) : undefined
-      outputError(`${context.action} failed: rate limit exceeded.`, {
-        ...options,
-        code: ExitCode.RATE_LIMITED,
-        errorType: 'rate_limited',
-        hint: waitSeconds
-          ? `Wait ${waitSeconds}s before retrying, or slow the request rate.`
-          : 'Wait a moment before retrying, or slow the request rate.',
-      })
-    }
-  }
-
-  const message = error instanceof Error ? error.message : String(error)
-  outputError(`${context.action} failed: ${message}`, {
-    ...options,
-    code: ExitCode.GENERAL_FAILURE,
-    errorType: 'api_error',
-  })
+  handleApiError(error, options, { ...context, scope: 'calendar' })
 }

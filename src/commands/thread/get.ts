@@ -1,7 +1,7 @@
 import { authedRequest } from '../../api.js'
-import { getActiveCredentials } from '../../config.js'
-import { ExitCode } from '../../exit-codes.js'
-import { output, outputError, type OutputOptions } from '../../output.js'
+import { handleApiError } from '../../api-errors.js'
+import { output, type OutputOptions } from '../../output.js'
+import { requireCredentials } from '../../session.js'
 import { formatAddress, formatDate } from './list.js'
 
 interface EmailAttachment {
@@ -60,15 +60,7 @@ export function formatThreadDetail(thread: Thread): string {
 }
 
 export async function threadGetCommand(uuid: string, options: OutputOptions): Promise<void> {
-  const creds = getActiveCredentials()
-  if (!creds) {
-    outputError('Not logged in.', {
-      ...options,
-      code: ExitCode.AUTH_REQUIRED,
-      hint: "Run 'cirrux login' first.",
-      errorType: 'auth_required',
-    })
-  }
+  requireCredentials(options)
 
   try {
     const thread = await authedRequest<Thread>(`public_api/v1/threads/${encodeURIComponent(uuid)}`)
@@ -81,20 +73,10 @@ export async function threadGetCommand(uuid: string, options: OutputOptions): Pr
       quietValue,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-
-    if (message.includes('404')) {
-      outputError(`Thread '${uuid}' not found.`, {
-        ...options,
-        code: ExitCode.NOT_FOUND,
-        errorType: 'not_found',
-      })
-    }
-
-    outputError(`Failed to fetch thread: ${message}`, {
-      ...options,
-      code: ExitCode.GENERAL_FAILURE,
-      errorType: 'api_error',
+    handleApiError(error, options, {
+      action: 'Fetch thread',
+      scope: 'email',
+      notFound: `Thread '${uuid}' not found.`,
     })
   }
 }

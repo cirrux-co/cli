@@ -1,7 +1,6 @@
-import { ApiError } from '../../api.js'
-import { getActiveCredentials } from '../../config.js'
+import { handleApiError, type ApiErrorRule } from '../../api-errors.js'
 import { ExitCode } from '../../exit-codes.js'
-import { outputError, type OutputOptions } from '../../output.js'
+import { type OutputOptions } from '../../output.js'
 
 export interface DriveFile {
   object: string
@@ -83,116 +82,47 @@ export function resolveMoveDestination(options: { to?: string; root?: boolean })
   return { ok: true, value: options.root ? null : (options.to as string) }
 }
 
-/** Exit early with a clear message when there are no stored credentials. */
-export function requireCredentials(options: OutputOptions): void {
-  if (!getActiveCredentials()) {
-    outputError('Not logged in.', {
-      ...options,
-      code: ExitCode.AUTH_REQUIRED,
-      hint: "Run 'cirrux login' first.",
-      errorType: 'auth_required',
-    })
-  }
-}
+export { requireCredentials } from '../../session.js'
 
-/**
- * Map a failed Drive API call to a clear message + exit code. A 403
- * `insufficient_scope` is treated specially: existing sessions predate the
- * Drive scopes, so the fix is to log in again.
- */
+const FILE_TOO_LARGE = 'file is too large (2 GB max).'
+
+// Drive's exceptions to the standard ladder. `name_taken` is the one that
+// justifies the mechanism: the API answers 422, but a name collision is a
+// conflict the caller resolves by picking another name, not a malformed
+// request, so it exits 5 rather than 2.
+export const DRIVE_ERROR_RULES: ApiErrorRule[] = [
+  // A bare 413 comes from the ingress, with no JSON body to carry a code.
+  { status: 413, exitCode: ExitCode.USAGE_ERROR, errorType: 'file_too_large', reason: FILE_TOO_LARGE },
+  { errorCode: 'file_too_large', exitCode: ExitCode.USAGE_ERROR, reason: FILE_TOO_LARGE },
+  {
+    errorCode: 'storage_limit_exceeded',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'the workspace storage limit has been reached.',
+  },
+  {
+    errorCode: 'invalid_move',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'a folder cannot be moved into itself or one of its own subfolders.',
+  },
+  {
+    errorCode: 'public_link_exists',
+    exitCode: ExitCode.CONFLICT,
+    reason: 'a public link already exists for this resource.',
+    hint: "Use 'cirrux drive share get' to see it, or revoke it first.",
+  },
+  {
+    errorCode: 'name_taken',
+    exitCode: ExitCode.CONFLICT,
+    reason: 'a file or folder with that name already exists in this folder.',
+    hint: 'Choose a different name and try again.',
+  },
+]
+
+/** Map a failed Drive API call to a clear message + exit code. */
 export function handleDriveError(
   error: unknown,
   options: OutputOptions,
   context: { action: string; notFound?: string },
 ): never {
-  if (error instanceof ApiError) {
-    if (error.status === 403 && error.body.includes('insufficient_scope')) {
-      outputError('Your session is missing Drive permissions.', {
-        ...options,
-        code: ExitCode.AUTH_REQUIRED,
-        hint: "Run 'cirrux login' again to grant Drive access.",
-        errorType: 'insufficient_scope',
-      })
-    }
-
-    if (error.status === 404) {
-      outputError(context.notFound ?? 'Not found.', {
-        ...options,
-        code: ExitCode.NOT_FOUND,
-        errorType: 'not_found',
-      })
-    }
-
-    if (error.status === 403) {
-      outputError('You do not have permission to perform this action.', {
-        ...options,
-        code: ExitCode.AUTH_REQUIRED,
-        errorType: 'forbidden',
-      })
-    }
-
-    if (error.status === 413 || (error.status === 422 && error.body.includes('file_too_large'))) {
-      outputError(`${context.action} failed: file is too large (2 GB max).`, {
-        ...options,
-        code: ExitCode.USAGE_ERROR,
-        errorType: 'file_too_large',
-      })
-    }
-
-    if (error.status === 422 && error.body.includes('storage_limit_exceeded')) {
-      outputError(`${context.action} failed: the workspace storage limit has been reached.`, {
-        ...options,
-        code: ExitCode.USAGE_ERROR,
-        errorType: 'storage_limit_exceeded',
-      })
-    }
-
-    if (error.status === 422 && error.body.includes('invalid_move')) {
-      outputError(`${context.action} failed: a folder cannot be moved into itself or one of its own subfolders.`, {
-        ...options,
-        code: ExitCode.USAGE_ERROR,
-        errorType: 'invalid_move',
-      })
-    }
-
-    if (error.status === 409 && error.body.includes('public_link_exists')) {
-      outputError(`${context.action} failed: a public link already exists for this resource.`, {
-        ...options,
-        code: ExitCode.CONFLICT,
-        errorType: 'public_link_exists',
-        hint: "Use 'cirrux drive share get' to see it, or revoke it first.",
-      })
-    }
-
-    if (error.status === 422 && error.body.includes('name_taken')) {
-      outputError(`${context.action} failed: a file or folder with that name already exists in this folder.`, {
-        ...options,
-        code: ExitCode.CONFLICT,
-        errorType: 'name_taken',
-        hint: 'Choose a different name and try again.',
-      })
-    }
-
-    // Reached only after the HTTP layer's automatic retries are exhausted, i.e.
-    // the rate limit stayed saturated. Give scripts/agents a stable signal to
-    // back off on rather than a generic failure.
-    if (error.status === 429) {
-      const waitSeconds = error.retryAfterMs !== undefined ? Math.ceil(error.retryAfterMs / 1000) : undefined
-      outputError(`${context.action} failed: rate limit exceeded.`, {
-        ...options,
-        code: ExitCode.RATE_LIMITED,
-        errorType: 'rate_limited',
-        hint: waitSeconds
-          ? `Wait ${waitSeconds}s before retrying, or slow the request rate.`
-          : 'Wait a moment before retrying, or slow the request rate.',
-      })
-    }
-  }
-
-  const message = error instanceof Error ? error.message : String(error)
-  outputError(`${context.action} failed: ${message}`, {
-    ...options,
-    code: ExitCode.GENERAL_FAILURE,
-    errorType: 'api_error',
-  })
+  handleApiError(error, options, { ...context, scope: 'Drive', rules: DRIVE_ERROR_RULES })
 }

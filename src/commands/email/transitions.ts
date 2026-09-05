@@ -1,7 +1,8 @@
-import { ApiError, authedRequest } from '../../api.js'
-import { getActiveCredentials } from '../../config.js'
+import { authedRequest } from '../../api.js'
+import { handleApiError } from '../../api-errors.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
+import { requireCredentials } from '../../session.js'
 import { type Email, summary } from './email-summary.js'
 import { resolveLabelTarget, type LabelTargetOptions } from './labels.js'
 
@@ -29,61 +30,12 @@ export function transitionPath(emailUuid: string, verb: TransitionVerb | 'move')
   return `public_api/v1/emails/${encodeURIComponent(emailUuid)}/${verb}`
 }
 
-function ensureCreds(options: OutputOptions): void {
-  const creds = getActiveCredentials()
-  if (!creds) {
-    outputError('Not logged in.', {
-      ...options,
-      code: ExitCode.AUTH_REQUIRED,
-      hint: "Run 'cirrux login' first.",
-      errorType: 'auth_required',
-    })
-  }
-}
-
-function handleTransitionError(error: unknown, emailUuid: string, options: OutputOptions): never {
-  if (error instanceof ApiError) {
-    const description = error.description ?? error.body
-
-    if (error.status === 404) {
-      outputError(description || `Email '${emailUuid}' not found.`, {
-        ...options,
-        code: ExitCode.NOT_FOUND,
-        errorType: 'not_found',
-      })
-    }
-
-    if (error.status === 422) {
-      outputError(description, {
-        ...options,
-        code: ExitCode.GENERAL_FAILURE,
-        errorType: 'invalid_state',
-      })
-    }
-
-    if (error.status === 400) {
-      outputError(description, {
-        ...options,
-        code: ExitCode.GENERAL_FAILURE,
-        errorType: 'invalid_body',
-      })
-    }
-  }
-
-  const message = error instanceof Error ? error.message : String(error)
-  outputError(`Failed to update email: ${message}`, {
-    ...options,
-    code: ExitCode.GENERAL_FAILURE,
-    errorType: 'api_error',
-  })
-}
-
 async function runTransition(
   emailUuid: string,
   verb: TransitionVerb,
   options: OutputOptions,
 ): Promise<void> {
-  ensureCreds(options)
+  requireCredentials(options)
 
   try {
     const email = await authedRequest<Email>(
@@ -97,7 +49,11 @@ async function runTransition(
       quietValue: email.uuid,
     })
   } catch (error) {
-    handleTransitionError(error, emailUuid, options)
+    handleApiError(error, options, {
+      action: 'Update email',
+      scope: 'email',
+      notFound: `Email '${emailUuid}' not found.`,
+    })
   }
 }
 
@@ -123,7 +79,7 @@ export async function emailMoveCommand(
   emailUuid: string,
   options: LabelTargetOptions,
 ): Promise<void> {
-  ensureCreds(options)
+  requireCredentials(options)
 
   const target = resolveLabelTarget(options)
   if (!target.ok) {
@@ -148,6 +104,10 @@ export async function emailMoveCommand(
       quietValue: email.uuid,
     })
   } catch (error) {
-    handleTransitionError(error, emailUuid, options)
+    handleApiError(error, options, {
+      action: 'Update email',
+      scope: 'email',
+      notFound: `Email '${emailUuid}' not found.`,
+    })
   }
 }

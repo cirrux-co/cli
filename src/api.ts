@@ -18,10 +18,30 @@ export function parseApiErrorDescription(body: string): string | null {
   }
 }
 
+/**
+ * The machine-readable code the API puts in every JSON error body's `error`
+ * field (`not_found`, `insufficient_scope`, `name_taken`, `invalid_range`, ...).
+ * Classification matches on this rather than on the description, which echoes
+ * user-controlled text like filenames.
+ */
+export function parseApiErrorCode(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown }
+    if (typeof parsed.error === 'string') {
+      return parsed.error
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export class ApiError extends Error {
   status: number
   body: string
   description: string | null
+  /** The body's `error` code. Null when the body is not JSON or omits it. */
+  errorCode: string | null
   /** How long to wait before retrying, derived from the response's rate-limit
    * headers (Retry-After / X-RateLimit-Reset). Undefined when the server gave
    * no hint, in which case callers fall back to exponential backoff. */
@@ -29,10 +49,14 @@ export class ApiError extends Error {
 
   constructor(status: number, body: string, retryAfterMs?: number) {
     const description = parseApiErrorDescription(body)
+    // Note the message is the description when there is one, so it does NOT
+    // contain the status code. Classify on `status`/`errorCode`, never by
+    // sniffing this string.
     super(description ?? `API error ${status}: ${body}`)
     this.status = status
     this.body = body
     this.description = description
+    this.errorCode = parseApiErrorCode(body)
     this.retryAfterMs = retryAfterMs
   }
 }

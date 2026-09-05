@@ -1,13 +1,14 @@
 import { authedRequestVoid } from '../../api.js'
+import { handleApiError } from '../../api-errors.js'
 import { output, type OutputOptions } from '../../output.js'
-import { ensureCreds, handleDraftError } from './draft-shared.js'
+import { requireCredentials } from './draft-shared.js'
 
 export function deletePath(uuid: string): string {
   return `public_api/v1/drafts/${encodeURIComponent(uuid)}`
 }
 
 export async function draftDeleteCommand(uuid: string, options: OutputOptions): Promise<void> {
-  ensureCreds(options)
+  requireCredentials(options)
 
   try {
     await authedRequestVoid(deletePath(uuid), { method: 'DELETE' })
@@ -21,6 +22,10 @@ export async function draftDeleteCommand(uuid: string, options: OutputOptions): 
       },
     )
   } catch (error) {
-    handleDraftError(error, `Failed to delete draft '${uuid}'`, options)
+    handleApiError(error, options, {
+      action: 'Delete draft',
+      scope: 'email',
+      notFound: `Draft '${uuid}' not found.`,
+    })
   }
 }

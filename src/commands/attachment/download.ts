@@ -1,7 +1,7 @@
 import { authedRequest } from '../../api.js'
-import { getActiveCredentials } from '../../config.js'
-import { ExitCode } from '../../exit-codes.js'
-import { output, outputError, type OutputOptions } from '../../output.js'
+import { handleApiError } from '../../api-errors.js'
+import { output, type OutputOptions } from '../../output.js'
+import { requireCredentials } from '../../session.js'
 
 interface AttachmentData {
   uuid: string
@@ -10,15 +10,7 @@ interface AttachmentData {
 }
 
 export async function attachmentDownloadCommand(uuid: string, options: OutputOptions): Promise<void> {
-  const creds = getActiveCredentials()
-  if (!creds) {
-    outputError('Not logged in.', {
-      ...options,
-      code: ExitCode.AUTH_REQUIRED,
-      hint: "Run 'cirrux login' first.",
-      errorType: 'auth_required',
-    })
-  }
+  requireCredentials(options)
 
   try {
     const result = await authedRequest<AttachmentData>(
@@ -43,20 +35,10 @@ export async function attachmentDownloadCommand(uuid: string, options: OutputOpt
     const decoded = Buffer.from(result.data, 'base64url')
     process.stdout.write(decoded)
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-
-    if (message.includes('404')) {
-      outputError(`Attachment '${uuid}' not found or content not available.`, {
-        ...options,
-        code: ExitCode.NOT_FOUND,
-        errorType: 'not_found',
-      })
-    }
-
-    outputError(`Failed to download attachment: ${message}`, {
-      ...options,
-      code: ExitCode.GENERAL_FAILURE,
-      errorType: 'api_error',
+    handleApiError(error, options, {
+      action: 'Download attachment',
+      scope: 'email',
+      notFound: `Attachment '${uuid}' not found or content not available.`,
     })
   }
 }

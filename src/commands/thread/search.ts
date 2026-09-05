@@ -1,7 +1,8 @@
-import { ApiError, authedRequest } from '../../api.js'
-import { getActiveCredentials } from '../../config.js'
-import { ExitCode } from '../../exit-codes.js'
-import { output, outputError, type OutputOptions } from '../../output.js'
+import { authedRequest } from '../../api.js'
+import { handleApiError } from '../../api-errors.js'
+import { SEARCH_ERROR_RULES } from '../search-shared.js'
+import { output, type OutputOptions } from '../../output.js'
+import { requireCredentials } from '../../session.js'
 import { formatThread } from './list.js'
 
 interface EmailAttachment {
@@ -50,15 +51,7 @@ export async function threadSearchCommand(
   query: string,
   options: OutputOptions & { mailboxUuid?: string; limit?: string; cursor?: string },
 ): Promise<void> {
-  const creds = getActiveCredentials()
-  if (!creds) {
-    outputError('Not logged in.', {
-      ...options,
-      code: ExitCode.AUTH_REQUIRED,
-      hint: "Run 'cirrux login' first.",
-      errorType: 'auth_required',
-    })
-  }
+  requireCredentials(options)
 
   try {
     const params = new URLSearchParams()
@@ -92,30 +85,11 @@ export async function threadSearchCommand(
       quietValue,
     })
   } catch (error) {
-    if (error instanceof ApiError) {
-      if (error.status === 422) {
-        outputError(`Invalid query: ${error.description ?? error.body}`, {
-          ...options,
-          code: ExitCode.USAGE_ERROR,
-          hint: 'Every operator needs a value; filter by date with "after:YYYY-MM-DD before:YYYY-MM-DD".',
-          errorType: 'invalid_query',
-        })
-      }
-
-      if (error.status === 404) {
-        outputError(`Mailbox not found.`, {
-          ...options,
-          code: ExitCode.NOT_FOUND,
-          errorType: 'not_found',
-        })
-      }
-    }
-
-    const message = error instanceof Error ? error.message : String(error)
-    outputError(`Failed to search threads: ${message}`, {
-      ...options,
-      code: ExitCode.GENERAL_FAILURE,
-      errorType: 'api_error',
+    handleApiError(error, options, {
+      action: 'Search threads',
+      scope: 'email',
+      notFound: 'Mailbox not found.',
+      rules: SEARCH_ERROR_RULES,
     })
   }
 }

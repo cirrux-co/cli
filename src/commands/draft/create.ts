@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { authedRequest } from '../../api.js'
+import { handleApiError } from '../../api-errors.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
-import { type Draft, ensureCreds, handleDraftError } from './draft-shared.js'
+import { type Draft, requireCredentials } from './draft-shared.js'
 
 export interface DraftCreateOptions extends OutputOptions {
   mailboxUuid?: string
@@ -64,7 +65,7 @@ export async function readMimeInput(options: DraftCreateOptions): Promise<string
 }
 
 export async function draftCreateCommand(options: DraftCreateOptions): Promise<void> {
-  ensureCreds(options)
+  requireCredentials(options)
 
   if (!options.mailboxUuid) {
     outputError('--mailbox-uuid is required.', {
@@ -117,7 +118,7 @@ export async function draftCreateCommand(options: DraftCreateOptions): Promise<v
       quietValue: draft.uuid,
     })
   } catch (error) {
-    handleDraftError(error, 'Failed to create draft', options)
+    handleApiError(error, options, { action: 'Create draft', scope: 'email' })
   }
 }
 

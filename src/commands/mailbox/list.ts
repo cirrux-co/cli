@@ -1,7 +1,7 @@
 import { authedRequest } from '../../api.js'
-import { getActiveCredentials } from '../../config.js'
-import { ExitCode } from '../../exit-codes.js'
-import { output, outputError, type OutputOptions } from '../../output.js'
+import { handleApiError } from '../../api-errors.js'
+import { output, type OutputOptions } from '../../output.js'
+import { requireCredentials } from '../../session.js'
 
 interface Mailbox {
   object: string
@@ -19,15 +19,7 @@ interface MailboxListResponse {
 }
 
 export async function mailboxListCommand(options: OutputOptions): Promise<void> {
-  const creds = getActiveCredentials()
-  if (!creds) {
-    outputError('Not logged in.', {
-      ...options,
-      code: ExitCode.AUTH_REQUIRED,
-      hint: "Run 'cirrux login' first.",
-      errorType: 'auth_required',
-    })
-  }
+  requireCredentials(options)
 
   try {
     const response = await authedRequest<MailboxListResponse>('public_api/v1/mailboxes')
@@ -46,10 +38,6 @@ export async function mailboxListCommand(options: OutputOptions): Promise<void> 
       quietValue,
     })
   } catch (error) {
-    outputError(`Failed to list mailboxes: ${error instanceof Error ? error.message : error}`, {
-      ...options,
-      code: ExitCode.GENERAL_FAILURE,
-      errorType: 'api_error',
-    })
+    handleApiError(error, options, { action: 'List mailboxes', scope: 'email' })
   }
 }

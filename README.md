@@ -140,6 +140,19 @@ cirrux drive share create <file-uuid>
 cirrux drive share create <folder-uuid> --folder
 cirrux drive share get <file-uuid>
 cirrux drive share revoke <file-uuid>
+
+# Calendars (read-only; recurring series come back already expanded)
+cirrux calendar list
+cirrux calendar events list <calendar-uuid> --today
+cirrux calendar events list <calendar-uuid> --on 2026-09-02
+cirrux calendar events list <calendar-uuid> --from 2026-09-01 --to 2026-09-08
+
+# Contacts (read-only; a contact lives in an addressbook)
+cirrux contacts addressbooks
+cirrux contacts list <addressbook-uuid>
+cirrux contacts search "acme"
+cirrux contacts search "jane" --addressbook-uuid <addressbook-uuid>
+cirrux contacts get <contact-uuid>
 ```
 
 ### Commands
@@ -173,6 +186,12 @@ cirrux drive share revoke <file-uuid>
 | `cirrux drive share create <uuid> [--folder]`                         | Create a public download link for a file or folder (anyone with the link, no login)                  |
 | `cirrux drive share get <uuid> [--folder]`                            | Show sharing settings (grants + public link) for a file or folder                                    |
 | `cirrux drive share revoke <uuid> [--folder]`                         | Revoke the public link for a file or folder                                                          |
+| `cirrux calendar list`                                                | List calendars you can see (needs the `calendar.read` scope)                                         |
+| `cirrux calendar events list <calendar-uuid>`                         | Events in a window, recurring series already expanded (`--today`, `--on`, `--from`/`--to`, `--days`) |
+| `cirrux contacts addressbooks`                                        | List your addressbooks (needs the `contacts.read` scope)                                             |
+| `cirrux contacts list <addressbook-uuid>`                             | List the contacts in one addressbook (`--limit`, `--cursor`)                                         |
+| `cirrux contacts search <query>`                                      | Substring search over contact names, company and email addresses (`--addressbook-uuid`)              |
+| `cirrux contacts get <contact-uuid>`                                  | One contact with its email addresses and phone numbers                                               |
 | `cirrux skill install` / `cirrux skill print`                         | Install or preview the bundled agent skill                                                           |
 
 Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `in:inbox`/`in:sent`/`in:drafts`/`in:archive`/`in:trash`/`in:spam`/`in:snoozed`/`in:starred`, `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.
@@ -185,7 +204,7 @@ Every data-producing command supports three output modes:
 | `--json`    | Structured JSON                  | Parsing fields programmatically |
 | `--quiet`   | Bare identifier(s), one per line | Piping UUIDs into the next call |
 
-Exit codes follow a predictable convention (`0` success, `2` usage error, `3` not found, `4` not logged in, `5` conflict, `6` rate limited) so scripts can branch on them without parsing error text. See [CLI design principles](docs/cli-design-principles.md) for the full rationale.
+Exit codes follow a predictable convention (`0` success, `1` unexpected failure, `2` usage error, `3` not found, `4` not logged in, `5` conflict, `6` rate limited) so scripts can branch on them without parsing error text. See [CLI design principles](docs/cli-design-principles.md) for the full rationale.
 
 ### Rate limits
 

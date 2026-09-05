@@ -69,6 +69,10 @@ import { driveShareGetCommand } from './commands/drive/share/get.js'
 import { driveShareRevokeCommand } from './commands/drive/share/revoke.js'
 import { calendarListCommand } from './commands/calendar/list.js'
 import { calendarEventsListCommand } from './commands/calendar/events/list.js'
+import { contactsAddressbooksCommand } from './commands/contacts/addressbooks.js'
+import { contactsListCommand } from './commands/contacts/list.js'
+import { contactsGetCommand } from './commands/contacts/get.js'
+import { contactsSearchCommand } from './commands/contacts/search.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { feedbackCommand } from './commands/feedback.js'
 import { installSkillCommand, printSkillCommand } from './commands/install-skill.js'
@@ -523,6 +527,8 @@ calendarEvents
   .command('list')
   .description('List events in a time window, with recurring series expanded into occurrences')
   .argument('<calendar-uuid>', 'Calendar UUID (from `cirrux calendar list`)')
+  .option('--today', "Just today, in the window's timezone (not the next 24 hours)")
+  .option('--on <date>', 'Just one calendar day, as YYYY-MM-DD')
   .option('--from <date>', 'Start of the window (ISO-8601 or YYYY-MM-DD). Defaults to now')
   .option('--to <date>', 'End of the window (ISO-8601 or YYYY-MM-DD). Defaults to 31 days after --from')
   .option('--days <n>', 'Window length in days from --from. Alternative to --to')
@@ -532,6 +538,59 @@ calendarEvents
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only occurrence IDs, one per line (for piping)')
   .action(calendarEventsListCommand)
+
+const contacts = program
+  .command('contacts')
+  .description('Browse and look up contacts')
+
+contacts
+  .command('addressbooks')
+  .description('List your addressbooks (a contact lives in one)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only addressbook UUIDs, one per line (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux contacts addressbooks')
+  .action(contactsAddressbooksCommand)
+
+contacts
+  .command('list')
+  .description('List the contacts in one addressbook')
+  .argument('<addressbook-uuid>', 'Addressbook UUID (from `cirrux contacts addressbooks`)')
+  .option('--limit <n>', 'Contacts per page, 1-100 (default 25)')
+  .option('--cursor <cursor>', 'Pagination cursor from a previous response')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only contact UUIDs, one per line (for piping)')
+  .addHelpText(
+    'after',
+    '\nExample:\n  $ cirrux contacts list $(cirrux contacts addressbooks --quiet | head -1)',
+  )
+  .action(contactsListCommand)
+
+contacts
+  .command('search')
+  .description('Search contacts by name, company or email address')
+  .argument('<query>', 'Search term, matched anywhere in the field')
+  .option('--addressbook-uuid <uuid>', 'Only contacts in this addressbook')
+  .option('--limit <n>', 'Contacts per page, 1-100 (default 25)')
+  .option('--cursor <cursor>', 'Pagination cursor from a previous response')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only contact UUIDs, one per line (for piping)')
+  .addHelpText(
+    'after',
+    '\nExamples:\n' +
+      '  $ cirrux contacts search "acme"\n' +
+      '  $ cirrux contacts search "jane" --addressbook-uuid <addressbook-uuid> --json\n' +
+      '  $ cirrux contacts search "acme" --quiet | head -1 | xargs cirrux contacts get',
+  )
+  .action(contactsSearchCommand)
+
+contacts
+  .command('get')
+  .description('Show one contact with its email addresses and phone numbers')
+  .argument('<uuid>', 'Contact UUID (from `cirrux contacts search`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the contact UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux contacts get <contact-uuid> --json')
+  .action(contactsGetCommand)
 
 const drive = program
   .command('drive')

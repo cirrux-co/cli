@@ -74,3 +74,21 @@ Between `--json`, `--quiet`, and plain text, the three output modes cover the va
 - Document the `--json` flag in each command's help
 - List valid values for enum-type options
 - Both humans and AI agents discover capabilities through `--help`
+
+## 9. One error mapper
+
+Every command's `catch` ends in `handleApiError` (`src/api-errors.ts`). It owns the whole ladder — `insufficient_scope`, 404, 403, 409, 429, 422/400 — so a command never decides an exit code for itself.
+
+**Never classify by sniffing strings.** `ApiError.message` is the API's `error_description` when there is one, so it does *not* contain the status code: a `message.includes('404')` test is dead code that silently downgrades every not-found to exit 1. And `error.body.includes('name_taken')` can fire on a description echoing a filename. Match on `error.status` and the parsed `error.errorCode` instead.
+
+Domain differences are expressed as `ApiErrorRule` **data**, never as a new `if`:
+
+```ts
+export const DRIVE_ERROR_RULES: ApiErrorRule[] = [
+  { errorCode: 'name_taken', exitCode: ExitCode.CONFLICT, reason: '...', hint: '...' },
+]
+```
+
+Rules are tried in order before the ladder, and the first match wins. A per-domain wrapper exists only to bind `scope` / `rules` — it never contains a branch. Six near-identical hand-rolled handlers is how this file's rules got out of sync in the first place.
+
+Classification lives in the pure `classifyApiError`, so it is unit-testable without spying on `process.exit`; `handleApiError` is the thin wrapper that prints and exits.

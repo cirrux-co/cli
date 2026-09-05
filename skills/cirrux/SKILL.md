@@ -1,11 +1,11 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments), Drive files (list, download, upload, trash, delete), or calendars (list calendars, read what is on a day or week) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week), or contacts (look someone's email address, phone or company up) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
 
-`cirrux` is the command-line interface for [Cirrux](https://cirrux.co) email. Use it to authenticate, browse mailboxes and threads, read individual emails, download attachments, manage Drive files, and read calendars.
+`cirrux` is the command-line interface for [Cirrux](https://cirrux.co) email. Use it to authenticate, browse mailboxes and threads, read individual emails, download attachments, manage Drive files, read calendars, and look up contacts.
 
 ## Prerequisite: check it's installed
 
@@ -105,7 +105,7 @@ Every data-producing command supports three output modes:
 | 5    | Resource already exists (conflict) |
 | 6    | Rate limited (retries exhausted)   |
 
-Check the exit code when scripting — don't grep error text.
+Check the exit code when scripting — don't grep error text. Every command that addresses a resource by id exits `3` when it does not exist (or you cannot see it), which is deliberately indistinguishable from "not yours". With `--json`, the error body also carries a machine-readable `type` (`not_found`, `insufficient_scope`, `invalid_query`, `name_taken`, …) if you need to branch more finely than the exit code allows.
 
 ## Rate limits
 
@@ -318,8 +318,10 @@ cirrux drive share revoke <file-uuid>               # revoke the public link (--
 ```bash
 cirrux calendar list                                          # calendars the user can see (uuid, name, role)
 cirrux calendar events list <calendar-uuid>                   # events in the next 31 days
-cirrux calendar events list <calendar-uuid> --days 1          # today
-cirrux calendar events list <calendar-uuid> --days 7          # the next week
+cirrux calendar events list <calendar-uuid> --today           # just today
+cirrux calendar events list <calendar-uuid> --on 2026-09-02   # just one named day
+cirrux calendar events list <calendar-uuid> --days 1          # the next 24 hours (NOT today)
+cirrux calendar events list <calendar-uuid> --days 7          # the next 7 days
 cirrux calendar events list <calendar-uuid> --from 2026-09-01 --to 2026-09-08   # an explicit window
 cirrux calendar events list <calendar-uuid> --timezone Europe/Amsterdam         # resolve the window in a zone
 cirrux calendar events list <calendar-uuid> --limit 50 --cursor <cur>           # paging
@@ -331,13 +333,39 @@ cirrux calendar events list <calendar-uuid> --limit 50 --cursor <cur>           
 
 **All-day events use `start.date` / `end.date`, and the end date is exclusive** (iCalendar DTEND): a one-day event on 2026-09-02 has `end.date` of 2026-09-03. Timed events use `start.date_time` (an absolute UTC instant) plus `start.time_zone` (the event's own IANA zone), so a "09:00 Amsterdam" meeting stays at 09:00 local across a DST change even though its UTC instant shifts.
 
-The window defaults to now through 31 days out and may not exceed 366 days; `--days` and `--to` are mutually exclusive. `--from` / `--to` take an ISO-8601 timestamp or a bare `YYYY-MM-DD` (start of day in the window's timezone). A window we can't act on (inverted, too wide, unparseable, unknown timezone) is rejected with exit code `2`. Results are ordered by start time with all-day and timed events interleaved; page with `--cursor` while `has_more` is true.
+The window defaults to now through 31 days out and may not exceed 366 days. `--from` / `--to` take an ISO-8601 timestamp or a bare `YYYY-MM-DD` (start of day in the window's timezone). A window we can't act on (inverted, too wide, unparseable, unknown timezone) is rejected with exit code `2`. Results are ordered by start time with all-day and timed events interleaved; page with `--cursor` while `has_more` is true.
+
+**`--days N` is not "N days" in the calendar sense unless you anchor it to a date.** With no `--from`, or an `--from` that is a full timestamp, it means N x 24 hours from that instant — so `--days 1` runs to this time tomorrow and rolls forward as the day passes. Anchor it to a bare date (`--from 2026-09-01 --days 7`) and both ends land on local midnight instead.
+
+**For "what is on my calendar today", use `--today`.** It resolves the current date in the window's timezone and asks for exactly that day. `--on <YYYY-MM-DD>` does the same for a named day. Both take their zone from `--timezone` when given, otherwise from the machine running the CLI, and pin it on the request so the date and the day boundaries cannot disagree. They pick a single day, so they cannot be combined with `--from` / `--to` / `--days` (exit code `2`), and `--days` and `--to` remain mutually exclusive with each other.
 
 `cirrux calendar list` returns **one entry per mailbox a calendar is linked to**, because the name, colour and position are per-mailbox. A calendar shared into two of the user's mailboxes appears twice with the same `calendar_uuid` and different `uuid` — pass the `calendar_uuid` (which is what `--quiet` emits) to `events list`. `role` is `owner` / `editor` / `viewer`; `can_write` says whether writing would be allowed.
 
 Calendar reads need the `calendar.read` OAuth scope. If the CLI was logged in before that scope existed, a calendar command fails with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant. Calendar access is read-only today; there are no create/update/delete commands, so say so rather than fabricating them.
 
+### Contacts
+
+```bash
+cirrux contacts addressbooks                                   # your addressbooks (a contact lives in one)
+cirrux contacts list <addressbook-uuid>                        # every contact in one addressbook
+cirrux contacts search "acme"                                  # match a name, company or email address
+cirrux contacts search "jane" --addressbook-uuid <uuid>        # restrict to one addressbook
+cirrux contacts get <contact-uuid>                             # one contact, with emails and phones
+```
+
+**A contact lives in an addressbook, and that is the only container.** `list` is keyed on an addressbook uuid, so resolve one with `cirrux contacts addressbooks` first — the same two-step as `cirrux calendar list` then `calendar events list`. Each addressbook carries the `mailbox_uuid` it belongs to, so a user who asks in terms of a mailbox can still be answered; there is no `--mailbox-uuid` on any contacts command.
+
+Most users have exactly one addressbook per mailbox, named "Contacts" and marked `is_default` — that is the one a new contact is filed in by the mail client and CardDAV.
+
+**Search matches a substring, anywhere, case-insensitively** — across the contact's formatted, given and family names, its company, and every email address on it. So "jan" finds "Janssen", and "acme" finds both a person at Acme and anyone with an `@acme.` address. There is no query language here: operators like `from:` mean nothing, and the whole string is one term. Unscoped it covers every contact the user owns in the workspace; `--addressbook-uuid` narrows it.
+
+Prefer `search` over `list` when the user is looking for someone in particular; `list` is for enumerating an addressbook.
+
+Contacts are **read-only from the CLI**. Reads need the `contacts.read` OAuth scope; a session created before that scope existed fails with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
+
 ## Search
+
+`cirrux contacts search` is a separate, much simpler thing — a plain substring match over an addressbook, documented above. Everything below is about mail.
 
 `cirrux thread search "<query>"` and `cirrux email search "<query>"` both hit the same search engine — the difference is the grouping of results. Use `thread search` when the user cares about conversations, `email search` when they care about individual messages (e.g. "find every email with an attachment").
 
@@ -386,7 +414,13 @@ cirrux thread list "$mb" --label inbox --limit 10
 
 ```bash
 cal=$(cirrux calendar list --quiet | head -1)
-cirrux calendar events list "$cal" --days 1
+cirrux calendar events list "$cal" --today
+```
+
+**Find someone's email address:**
+
+```bash
+cirrux contacts search "jane" --quiet | head -1 | xargs cirrux contacts get
 ```
 
 **Pull a week as JSON, keeping only the timed meetings the user has to attend:**

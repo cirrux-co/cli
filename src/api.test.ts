@@ -1,6 +1,7 @@
 import { test, expect, beforeEach } from 'bun:test'
 import {
   ApiError,
+  parseApiErrorCode,
   parseApiErrorDescription,
   parseRetryAfterMs,
   resolveCoAuthor,
@@ -155,4 +156,22 @@ test('parseRetryAfterMs falls back to X-RateLimit-Reset epoch', () => {
 
 test('parseRetryAfterMs returns undefined when no rate-limit headers are present', () => {
   expect(parseRetryAfterMs(new Headers())).toBeUndefined()
+})
+
+test('parseApiErrorCode extracts the machine-readable code from a JSON body', () => {
+  expect(parseApiErrorCode('{"error":"not_found","error_description":"Mailbox not found."}')).toBe(
+    'not_found',
+  )
+})
+
+test('parseApiErrorCode returns null for a body with no code', () => {
+  expect(parseApiErrorCode('<html>502 Bad Gateway</html>')).toBeNull()
+  expect(parseApiErrorCode('{"error_description":"no code here"}')).toBeNull()
+})
+
+test('ApiError exposes the parsed error code alongside the description', () => {
+  const error = new ApiError(422, '{"error":"invalid_range","error_description":"Too wide."}')
+
+  expect(error.errorCode).toBe('invalid_range')
+  expect(error.description).toBe('Too wide.')
 })

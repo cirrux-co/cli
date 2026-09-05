@@ -1,22 +1,15 @@
 import { authedRequestRaw } from '../../api.js'
-import { getActiveCredentials } from '../../config.js'
+import { handleApiError } from '../../api-errors.js'
 import { ExitCode } from '../../exit-codes.js'
 import { outputError, type OutputOptions } from '../../output.js'
+import { requireCredentials } from '../../session.js'
 
 export async function emailContentCommand(
   uuid: string,
   format: string,
   options: OutputOptions,
 ): Promise<void> {
-  const creds = getActiveCredentials()
-  if (!creds) {
-    outputError('Not logged in.', {
-      ...options,
-      code: ExitCode.AUTH_REQUIRED,
-      hint: "Run 'cirrux login' first.",
-      errorType: 'auth_required',
-    })
-  }
+  requireCredentials(options)
 
   if (format !== 'raw' && format !== 'body') {
     outputError('Format must be "raw" or "body".', {
@@ -33,20 +26,10 @@ export async function emailContentCommand(
 
     process.stdout.write(body)
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-
-    if (message.includes('404')) {
-      outputError(`Email '${uuid}' not found or content not available.`, {
-        ...options,
-        code: ExitCode.NOT_FOUND,
-        errorType: 'not_found',
-      })
-    }
-
-    outputError(`Failed to fetch email content: ${message}`, {
-      ...options,
-      code: ExitCode.GENERAL_FAILURE,
-      errorType: 'api_error',
+    handleApiError(error, options, {
+      action: 'Fetch email content',
+      scope: 'email',
+      notFound: `Email '${uuid}' not found or content not available.`,
     })
   }
 }
