@@ -6,6 +6,7 @@ export interface Calendar {
   uuid: string
   calendar_uuid: string
   mailbox_uuid: string
+  mailbox_address: string | null
   name: string
   description: string | null
   color: string | null

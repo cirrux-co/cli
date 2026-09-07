@@ -43,6 +43,7 @@ export interface Addressbook {
   object: string
   uuid: string
   mailbox_uuid: string
+  mailbox_address: string | null
   name: string
   is_default: boolean
   created_at: string
@@ -93,14 +94,20 @@ export function contactDisplayName(contact: Contact): string {
 /**
  * Render an addressbook listing. The quiet value is the addressbook uuid, which
  * is what `contacts list` and `contacts search --addressbook-uuid` take.
+ *
+ * Every mailbox names its addressbook "Contacts", so a user with several mailboxes gets
+ * several identical-looking rows. The mailbox address is the only thing that tells them
+ * apart, which makes it part of the line rather than a detail to look up.
  */
 export function formatAddressbookList(response: AddressbookListResponse): {
   text: string
   quietValue: string
 } {
   const lines = response.data.map((addressbook) => {
-    const suffix = addressbook.is_default ? '\t(default)' : ''
-    return `${addressbook.uuid}\t${addressbook.name}${suffix}`
+    const columns = [addressbook.uuid, addressbook.name, addressbook.mailbox_address]
+    if (addressbook.is_default) columns.push('(default)')
+
+    return columns.filter(Boolean).join('\t')
   })
 
   return {

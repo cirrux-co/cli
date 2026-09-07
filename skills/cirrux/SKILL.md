@@ -316,7 +316,7 @@ cirrux drive share revoke <file-uuid>               # revoke the public link (--
 ### Calendar
 
 ```bash
-cirrux calendar list                                          # calendars the user can see (uuid, name, role)
+cirrux calendar list                                          # calendars the user can see (uuid, name, mailbox, role)
 cirrux calendar events list <calendar-uuid>                   # events in the next 31 days
 cirrux calendar events list <calendar-uuid> --today           # just today
 cirrux calendar events list <calendar-uuid> --on 2026-09-02   # just one named day
@@ -339,21 +339,21 @@ The window defaults to now through 31 days out and may not exceed 366 days. `--f
 
 **For "what is on my calendar today", use `--today`.** It resolves the current date in the window's timezone and asks for exactly that day. `--on <YYYY-MM-DD>` does the same for a named day. Both take their zone from `--timezone` when given, otherwise from the machine running the CLI, and pin it on the request so the date and the day boundaries cannot disagree. They pick a single day, so they cannot be combined with `--from` / `--to` / `--days` (exit code `2`), and `--days` and `--to` remain mutually exclusive with each other.
 
-`cirrux calendar list` returns **one entry per mailbox a calendar is linked to**, because the name, colour and position are per-mailbox. A calendar shared into two of the user's mailboxes appears twice with the same `calendar_uuid` and different `uuid` — pass the `calendar_uuid` (which is what `--quiet` emits) to `events list`. `role` is `owner` / `editor` / `viewer`; `can_write` says whether writing would be allowed.
+`cirrux calendar list` returns **one entry per mailbox a calendar is linked to**, because the name, colour and position are per-mailbox. A calendar shared into two of the user's mailboxes appears twice with the same `calendar_uuid` and different `uuid` — pass the `calendar_uuid` (which is what `--quiet` emits) to `events list`. Each line names the mailbox it belongs to (`mailbox_address` in `--json`), which is usually the only thing separating two entries, since most mailboxes call their calendar "Calendar". `role` is `owner` / `editor` / `viewer`; `can_write` says whether writing would be allowed.
 
 Calendar reads need the `calendar.read` OAuth scope. If the CLI was logged in before that scope existed, a calendar command fails with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant. Calendar access is read-only today; there are no create/update/delete commands, so say so rather than fabricating them.
 
 ### Contacts
 
 ```bash
-cirrux contacts addressbooks                                   # your addressbooks (a contact lives in one)
+cirrux contacts addressbooks                                   # your addressbooks (uuid, name, mailbox)
 cirrux contacts list <addressbook-uuid>                        # every contact in one addressbook
 cirrux contacts search "acme"                                  # match a name, company or email address
 cirrux contacts search "jane" --addressbook-uuid <uuid>        # restrict to one addressbook
 cirrux contacts get <contact-uuid>                             # one contact, with emails and phones
 ```
 
-**A contact lives in an addressbook, and that is the only container.** `list` is keyed on an addressbook uuid, so resolve one with `cirrux contacts addressbooks` first — the same two-step as `cirrux calendar list` then `calendar events list`. Each addressbook carries the `mailbox_uuid` it belongs to, so a user who asks in terms of a mailbox can still be answered; there is no `--mailbox-uuid` on any contacts command.
+**A contact lives in an addressbook, and that is the only container.** `list` is keyed on an addressbook uuid, so resolve one with `cirrux contacts addressbooks` first — the same two-step as `cirrux calendar list` then `calendar events list`. Each addressbook carries the `mailbox_uuid` it belongs to plus its `mailbox_address`, which the listing prints — a user with several mailboxes has several addressbooks all named "Contacts", and the address is what tells them apart. There is no `--mailbox-uuid` on any contacts command; match on the address instead.
 
 Most users have exactly one addressbook per mailbox, named "Contacts" and marked `is_default` — that is the one a new contact is filed in by the mail client and CardDAV.
 

@@ -6,11 +6,17 @@ import { type CalendarListResponse, handleCalendarError, requireCredentials } fr
  * Render a calendar listing into the CLI's human text and the newline-joined
  * calendar UUIDs used by --quiet. The quiet value is `calendar_uuid`, not
  * `uuid`, because that is what every other calendar command takes.
+ *
+ * The mailbox address is on the line because a user with several mailboxes has several
+ * calendars called "Calendar", and one entry per mailbox link means even a single shared
+ * calendar appears twice — the address is what distinguishes them.
  */
 export function formatCalendarList(response: CalendarListResponse): { text: string; quietValue: string } {
   const lines = response.data.map((calendar) => {
     const flags = [calendar.role, calendar.is_default ? 'default' : null].filter(Boolean).join(', ')
-    return `${calendar.calendar_uuid}\t${calendar.name}\t(${flags})`
+    const columns = [calendar.calendar_uuid, calendar.name, calendar.mailbox_address, `(${flags})`]
+
+    return columns.filter(Boolean).join('\t')
   })
 
   return {

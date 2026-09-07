@@ -5,7 +5,7 @@ import {
   formatContact,
   formatContactLine,
 } from './contacts-shared.js'
-import type { Contact, ContactEmail, ContactPhone } from './contacts-shared.js'
+import type { Addressbook, AddressbookListResponse, Contact, ContactEmail, ContactPhone } from './contacts-shared.js'
 
 function email(address: string, types: string[] = []): ContactEmail {
   return { object: 'contact_email', uuid: `e-${address}`, email: address, types, preference: null }
@@ -100,23 +100,57 @@ test('formatContact drops the type suffix when there are none', () => {
   )
 })
 
-test('formatAddressbookList marks the default and emits uuids for --quiet', () => {
-  const { text, quietValue } = formatAddressbookList({
-    object: 'list',
-    url: '/v1/addressbooks',
-    has_more: false,
-    data: [
-      { object: 'addressbook', uuid: 'ab-1', mailbox_uuid: 'mb-1', name: 'Contacts', is_default: true, created_at: '', updated_at: null },
-      { object: 'addressbook', uuid: 'ab-2', mailbox_uuid: 'mb-1', name: 'Work', is_default: false, created_at: '', updated_at: null },
-    ],
-  })
+function addressbook(overrides: Partial<Addressbook> = {}): Addressbook {
+  return {
+    object: 'addressbook',
+    uuid: 'ab-1',
+    mailbox_uuid: 'mb-1',
+    mailbox_address: 'rick@example.com',
+    name: 'Contacts',
+    is_default: true,
+    created_at: '',
+    updated_at: null,
+    ...overrides,
+  }
+}
 
-  expect(text.split('\n')).toEqual(['ab-1\tContacts\t(default)', 'ab-2\tWork'])
+function addressbookResponse(data: Addressbook[]): AddressbookListResponse {
+  return { object: 'list', url: '/v1/addressbooks', has_more: false, data }
+}
+
+test('formatAddressbookList marks the default and emits uuids for --quiet', () => {
+  const { text, quietValue } = formatAddressbookList(
+    addressbookResponse([addressbook(), addressbook({ uuid: 'ab-2', name: 'Work', is_default: false })]),
+  )
+
+  expect(text.split('\n')).toEqual(['ab-1\tContacts\trick@example.com\t(default)', 'ab-2\tWork\trick@example.com'])
   expect(quietValue).toBe('ab-1\nab-2')
 })
 
+// The reason the address is on the line at all: every mailbox provisions an addressbook
+// called "Contacts", so without it these two rows are indistinguishable apart from a uuid.
+test('formatAddressbookList tells same-named addressbooks apart by mailbox', () => {
+  const { text } = formatAddressbookList(
+    addressbookResponse([
+      addressbook(),
+      addressbook({ uuid: 'ab-2', mailbox_uuid: 'mb-2', mailbox_address: 'rick@other.example.com' }),
+    ]),
+  )
+
+  expect(text.split('\n')).toEqual([
+    'ab-1\tContacts\trick@example.com\t(default)',
+    'ab-2\tContacts\trick@other.example.com\t(default)',
+  ])
+})
+
+test('formatAddressbookList drops the address column when the mailbox has no address', () => {
+  const { text } = formatAddressbookList(addressbookResponse([addressbook({ mailbox_address: null })]))
+
+  expect(text).toBe('ab-1\tContacts\t(default)')
+})
+
 test('formatAddressbookList says so when there are none', () => {
-  const { text } = formatAddressbookList({ object: 'list', url: '/v1/addressbooks', has_more: false, data: [] })
+  const { text } = formatAddressbookList(addressbookResponse([]))
 
   expect(text).toBe('No addressbooks found.')
 })
