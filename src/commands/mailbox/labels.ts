@@ -35,13 +35,13 @@ export async function mailboxLabelsListCommand(
       data: response.data,
     }
 
-    const lines = response.data.map((l) => `${l.uuid}\t${l.type}\t${l.name}`)
-    const quietValue = response.data.map((l) => l.uuid).join('\n')
-
     output(data, {
       ...options,
-      text: lines.length > 0 ? lines.join('\n') : 'No labels found.',
-      quietValue,
+      text: () =>
+        response.data.length > 0
+          ? response.data.map((l) => `${l.uuid}\t${l.type}\t${l.name}`).join('\n')
+          : 'No labels found.',
+      quietValue: () => response.data.map((l) => l.uuid).join('\n'),
     })
   } catch (error) {
     handleLabelError(error, options, { action: 'List labels', notFound: `Mailbox '${mailboxUuid}' not found.` })
@@ -76,8 +76,8 @@ export async function mailboxLabelsCreateCommand(
 
     output(label as unknown as Record<string, unknown>, {
       ...options,
-      text: `Created label ${label.name} (${label.uuid})`,
-      quietValue: label.uuid,
+      text: () => `Created label ${label.name} (${label.uuid})`,
+      quietValue: () => label.uuid,
     })
   } catch (error) {
     handleLabelError(error, options, { action: 'Create label', notFound: `Mailbox '${mailboxUuid}' not found.` })
@@ -100,8 +100,8 @@ export async function mailboxLabelsUpdateCommand(
 
     output(label as unknown as Record<string, unknown>, {
       ...options,
-      text: `Renamed label to ${label.name} (${label.uuid})`,
-      quietValue: label.uuid,
+      text: () => `Renamed label to ${label.name} (${label.uuid})`,
+      quietValue: () => label.uuid,
     })
   } catch (error) {
     handleLabelError(error, options, { action: 'Update label', notFound: `Label '${labelUuid}' not found.` })
@@ -120,8 +120,8 @@ export async function mailboxLabelsDeleteCommand(
 
     output({ uuid: labelUuid, deleted: true }, {
       ...options,
-      text: `Deleted label ${labelUuid}`,
-      quietValue: labelUuid,
+      text: () => `Deleted label ${labelUuid}`,
+      quietValue: () => labelUuid,
     })
   } catch (error) {
     handleLabelError(error, options, { action: 'Delete label', notFound: `Label '${labelUuid}' not found.` })

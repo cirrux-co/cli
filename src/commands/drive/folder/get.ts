@@ -12,8 +12,8 @@ export async function driveFolderGetCommand(uuid: string, options: OutputOptions
 
     output(folder as unknown as Record<string, unknown>, {
       ...options,
-      text: `${folder.name} (${folder.uuid})`,
-      quietValue: folder.uuid,
+      text: () => `${folder.name} (${folder.uuid})`,
+      quietValue: () => folder.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, { action: 'Get folder', notFound: `Folder '${uuid}' not found.` })

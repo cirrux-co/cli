@@ -30,8 +30,8 @@ export async function driveMoveCommand(uuid: string, options: MoveOptions): Prom
 
     output(file as unknown as Record<string, unknown>, {
       ...options,
-      text: `Moved ${file.name} to ${folderUuid ?? 'the root'} (${file.uuid})`,
-      quietValue: file.uuid,
+      text: () => `Moved ${file.name} to ${folderUuid ?? 'the root'} (${file.uuid})`,
+      quietValue: () => file.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, {

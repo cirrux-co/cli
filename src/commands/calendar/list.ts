@@ -1,5 +1,5 @@
 import { authedRequest } from '../../api.js'
-import { output, type OutputOptions } from '../../output.js'
+import { deferred, output, type OutputOptions } from '../../output.js'
 import { type CalendarListResponse, handleCalendarError, requireCredentials } from './calendar-shared.js'
 
 /**
@@ -33,7 +33,7 @@ export async function calendarListCommand(options: OutputOptions): Promise<void>
 
     output(response as unknown as Record<string, unknown>, {
       ...options,
-      ...formatCalendarList(response),
+      ...deferred(() => formatCalendarList(response)),
     })
   } catch (error) {
     handleCalendarError(error, options, { action: 'List calendars' })

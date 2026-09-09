@@ -21,31 +21,39 @@ export async function whoamiCommand(options: OutputOptions): Promise<void> {
     }>('public_api/v1/user/profile')
 
     const data: Record<string, unknown> = {}
-    const lines: string[] = []
 
     if (profile.user) {
       data.user_uuid = profile.user.uuid
       data.username = profile.user.username
       data.first_name = profile.user.first_name
       data.last_name = profile.user.last_name
-      lines.push(`User: ${profile.user.first_name} ${profile.user.last_name} (${profile.user.username})`)
     }
 
     if (profile.workspace) {
       data.workspace_uuid = profile.workspace.uuid
       data.workspace_name = profile.workspace.name
-      lines.push(`Workspace: ${profile.workspace.name} (${profile.workspace.uuid})`)
     }
 
     if (creds.scopes && creds.scopes.length > 0) {
       data.scopes = creds.scopes
-      lines.push(`Scopes: ${creds.scopes.join(', ')}`)
     }
 
     output(data, {
       ...options,
-      text: lines.join('\n'),
-      quietValue: profile.user?.username,
+      text: () => {
+        const lines: string[] = []
+        if (profile.user) {
+          lines.push(`User: ${profile.user.first_name} ${profile.user.last_name} (${profile.user.username})`)
+        }
+        if (profile.workspace) {
+          lines.push(`Workspace: ${profile.workspace.name} (${profile.workspace.uuid})`)
+        }
+        if (creds.scopes && creds.scopes.length > 0) {
+          lines.push(`Scopes: ${creds.scopes.join(', ')}`)
+        }
+        return lines.join('\n')
+      },
+      quietValue: () => profile.user?.username ?? '',
     })
   } catch (error) {
     outputError(`Failed to fetch profile: ${error instanceof Error ? error.message : error}`, {

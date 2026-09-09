@@ -1,6 +1,6 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week), or contacts (look someone's email address, phone or company up) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events), or contacts (look someone's email address, phone or company up) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
@@ -106,6 +106,8 @@ Every data-producing command supports three output modes:
 | 6    | Rate limited (retries exhausted)   |
 
 Check the exit code when scripting — don't grep error text. Every command that addresses a resource by id exits `3` when it does not exist (or you cannot see it), which is deliberately indistinguishable from "not yours". With `--json`, the error body also carries a machine-readable `type` (`not_found`, `insufficient_scope`, `invalid_query`, `name_taken`, …) if you need to branch more finely than the exit code allows.
+
+One type is worth special-casing: `format_error` (exit `1`) means the request succeeded and only the CLI's own rendering of the response failed. Nothing is wrong with the data or your credentials, and re-running the same command with `--json` returns it.
 
 ## Rate limits
 
@@ -325,6 +327,23 @@ cirrux calendar events list <calendar-uuid> --days 7          # the next 7 days
 cirrux calendar events list <calendar-uuid> --from 2026-09-01 --to 2026-09-08   # an explicit window
 cirrux calendar events list <calendar-uuid> --timezone Europe/Amsterdam         # resolve the window in a zone
 cirrux calendar events list <calendar-uuid> --limit 50 --cursor <cur>           # paging
+
+cirrux calendar events create <calendar-uuid> --title "Coffee" \
+  --start 2026-09-02T10:00 --end 2026-09-02T10:30                             # a timed event
+cirrux calendar events create <calendar-uuid> --title "Offsite" --all-day \
+  --start 2026-09-02 --end 2026-09-04                                         # end date is EXCLUSIVE
+cirrux calendar events create <calendar-uuid> --title "Standup" \
+  --start 2026-09-02T09:00 --end 2026-09-02T09:15 \
+  --recurrence "FREQ=WEEKLY;BYDAY=WE"                                         # a repeating event
+cirrux calendar events create <calendar-uuid> --title "Review" \
+  --start 2026-09-02T14:00 --end 2026-09-02T15:00 \
+  --attendee "Jane <jane@example.com>"                                        # invites Jane by email
+
+cirrux calendar events update <calendar-uuid> <event-uuid> --location "Room 2" # the whole event
+cirrux calendar events update <calendar-uuid> <uuid>_20260909T070000Z \
+  --title "Long standup"                                                      # just that occurrence
+cirrux calendar events delete <calendar-uuid> <event-uuid> --yes              # the whole event
+cirrux calendar events delete <calendar-uuid> <uuid>_20260909T070000Z --yes   # just that occurrence
 ```
 
 **Recurring events are already expanded.** A weekly standup is stored as one row with an RRULE, but the endpoint returns one item per week in the window, so "what is on Tuesday" is answerable directly. You never have to interpret a recurrence rule; the series' RRULE is echoed on each instance as `recurrence` for reference.
@@ -341,7 +360,17 @@ The window defaults to now through 31 days out and may not exceed 366 days. `--f
 
 `cirrux calendar list` returns **one entry per mailbox a calendar is linked to**, because the name, colour and position are per-mailbox. A calendar shared into two of the user's mailboxes appears twice with the same `calendar_uuid` and different `uuid` — pass the `calendar_uuid` (which is what `--quiet` emits) to `events list`. Each line names the mailbox it belongs to (`mailbox_address` in `--json`), which is usually the only thing separating two entries, since most mailboxes call their calendar "Calendar". `role` is `owner` / `editor` / `viewer`; `can_write` says whether writing would be allowed.
 
-Calendar reads need the `calendar.read` OAuth scope. If the CLI was logged in before that scope existed, a calendar command fails with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant. Calendar access is read-only today; there are no create/update/delete commands, so say so rather than fabricating them.
+**The ID you pass to `update` / `delete` decides the scope, and there is no `--scope` flag.** An event UUID means the whole event: for a repeating event that is the entire series, including every occurrence previously edited out of it. An occurrence ID (`<series-uuid>_<recurrence-id>`, exactly as `events list` prints it) means only that one — updating it splits that occurrence out of the series the first time, and deleting it cancels just that date and leaves the rest alone. So take the id from `events list` rather than assembling one, and pick the row you actually mean.
+
+**Writes send email.** Creating or updating an event with `--attendee` emails those people an invitation; deleting an event or an occurrence emails the guests a cancellation. This is real mail to real addresses, exactly as if the user had done it in the calendar app. Because of that, `delete` asks for confirmation, and outside a terminal (which is where you are) it refuses unless you pass `--yes` — so confirm with the user before deleting anything with guests on it.
+
+**`update` only changes what you pass.** Omitted fields are left alone. Two exceptions: `--attendee` replaces the entire guest list, so resend everyone you want to keep, and `--start` / `--end` must be given together. Pass an empty string to clear a field (`--recurrence ""` stops an event repeating). Times are handed to the server as you type them: `2026-09-02T09:00` is wall-clock time resolved in `--timezone`, which defaults to the machine's own zone.
+
+**Attendee values are lower-case with underscores**, matching what the listing prints: `status` is `needs_action` / `accepted` / `declined` / `tentative`, `role` is `chair` / `req_participant` / `opt_participant` / `non_participant`, `cutype` is `individual` / `group` / `resource` / `room` / `unknown`. The iCalendar spellings (`REQ-PARTICIPANT`) are rejected with exit code `2`.
+
+**You can only write to a calendar whose `can_write` is true** — check `cirrux calendar list` first. A subscription to an external feed is read-only for everyone including its owner. If you are an attendee on an event rather than its organizer, an update changes only your own RSVP status and nothing else, and it has to target the event itself: changing or cancelling a single occurrence of a series you do not organize is refused (exit code `2`), because both reshape the series.
+
+Calendar reads need the `calendar.read` OAuth scope and writes need `calendar.write`. If the CLI was logged in before those scopes existed, a calendar command fails with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
 
 ### Contacts
 
@@ -415,6 +444,30 @@ cirrux thread list "$mb" --label inbox --limit 10
 ```bash
 cal=$(cirrux calendar list --quiet | head -1)
 cirrux calendar events list "$cal" --today
+```
+
+**Book a meeting on the user's default calendar:**
+
+```bash
+cal=$(cirrux calendar list --json | jq -r '.data[] | select(.is_default and .can_write) | .calendar_uuid' | head -1)
+
+# --quiet gives back the new event's id, which is what update and delete take.
+id=$(cirrux calendar events create "$cal" --title "Design review" \
+  --start 2026-09-02T14:00 --end 2026-09-02T15:00 --timezone Europe/Amsterdam \
+  --attendee "Jane <jane@example.com>" --quiet)
+
+cirrux calendar events update "$cal" "$id" --location "Room 2"
+```
+
+**Move one instance of a repeating meeting without touching the rest:**
+
+```bash
+# Take the occurrence id straight from the listing; do not build one by hand.
+occ=$(cirrux calendar events list "$cal" --days 14 --json \
+  | jq -r '.data[] | select(.title == "Standup") | .id' | sed -n 2p)
+
+cirrux calendar events update "$cal" "$occ" \
+  --start 2026-09-09T11:00 --end 2026-09-09T11:30 --timezone Europe/Amsterdam
 ```
 
 **Find someone's email address:**
@@ -544,4 +597,4 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links. Snoozing and every calendar write are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, and `calendar events create` / `update` / `delete` for calendar events. Snoozing and contact writes are not yet exposed — say so rather than fabricating commands.

@@ -17,17 +17,16 @@ export async function mailboxGetCommand(id: string, options: OutputOptions): Pro
   try {
     const mailbox = await authedRequest<Mailbox>(`public_api/v1/mailboxes/${encodeURIComponent(id)}`)
 
-    const lines = [
-      `UUID:            ${mailbox.uuid}`,
-      `Primary address: ${mailbox.primary_address}`,
-      `Created at:      ${mailbox.created_at}`,
-      `Updated at:      ${mailbox.updated_at}`,
-    ]
-
     output(mailbox as unknown as Record<string, unknown>, {
       ...options,
-      text: lines.join('\n'),
-      quietValue: mailbox.uuid,
+      text: () =>
+        [
+          `UUID:            ${mailbox.uuid}`,
+          `Primary address: ${mailbox.primary_address}`,
+          `Created at:      ${mailbox.created_at}`,
+          `Updated at:      ${mailbox.updated_at}`,
+        ].join('\n'),
+      quietValue: () => mailbox.uuid,
     })
   } catch (error) {
     handleApiError(error, options, {

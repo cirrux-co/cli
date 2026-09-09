@@ -2,7 +2,7 @@ import { authedRequest } from '../../api.js'
 import { handleApiError } from '../../api-errors.js'
 import { output, type OutputOptions } from '../../output.js'
 import { requireCredentials } from '../../session.js'
-import { formatAddress } from '../thread/list.js'
+import { formatAddresses } from '../thread/list.js'
 
 interface EmailAttachment {
   object: string
@@ -28,38 +28,38 @@ interface Email {
   attachments: EmailAttachment[]
 }
 
+export function formatEmailDetail(email: Email): string {
+  const cc = email.cc?.length ? formatAddresses(email.cc) : ''
+  const attachments = email.attachments?.length
+    ? email.attachments.map((a) => `${a.filename} (${a.content_type}, ${a.file_size_bytes} bytes)`).join(', ')
+    : 'None'
+
+  return [
+    `UUID:        ${email.uuid}`,
+    `Thread:      ${email.thread_uuid}`,
+    `Subject:     ${email.subject}`,
+    `From:        ${formatAddresses(email.from)}`,
+    `To:          ${formatAddresses(email.to, '')}`,
+    ...(cc ? [`CC:          ${cc}`] : []),
+    `Date:        ${email.date}`,
+    `Read:        ${email.read_at ? 'Yes' : 'No'}`,
+    `Flagged:     ${email.flagged_at ? 'Yes' : 'No'}`,
+    `Labels:      ${email.labels.join(', ') || 'None'}`,
+    `Attachments: ${attachments}`,
+    ...(email.snippet ? [`Snippet:     ${email.snippet}`] : []),
+  ].join('\n')
+}
+
 export async function emailGetCommand(uuid: string, options: OutputOptions): Promise<void> {
   requireCredentials(options)
 
   try {
     const email = await authedRequest<Email>(`public_api/v1/emails/${encodeURIComponent(uuid)}`)
 
-    const from = email.from?.map(formatAddress).join(', ') ?? 'Unknown'
-    const to = email.to?.map(formatAddress).join(', ') ?? ''
-    const cc = email.cc?.map(formatAddress).join(', ')
-    const attachments = email.attachments?.length
-      ? email.attachments.map((a) => `${a.filename} (${a.content_type}, ${a.file_size_bytes} bytes)`).join(', ')
-      : 'None'
-
-    const lines = [
-      `UUID:        ${email.uuid}`,
-      `Thread:      ${email.thread_uuid}`,
-      `Subject:     ${email.subject}`,
-      `From:        ${from}`,
-      `To:          ${to}`,
-      ...(cc ? [`CC:          ${cc}`] : []),
-      `Date:        ${email.date}`,
-      `Read:        ${email.read_at ? 'Yes' : 'No'}`,
-      `Flagged:     ${email.flagged_at ? 'Yes' : 'No'}`,
-      `Labels:      ${email.labels.join(', ') || 'None'}`,
-      `Attachments: ${attachments}`,
-      ...(email.snippet ? [`Snippet:     ${email.snippet}`] : []),
-    ]
-
     output(email as unknown as Record<string, unknown>, {
       ...options,
-      text: lines.join('\n'),
-      quietValue: email.uuid,
+      text: () => formatEmailDetail(email),
+      quietValue: () => email.uuid,
     })
   } catch (error) {
     handleApiError(error, options, {

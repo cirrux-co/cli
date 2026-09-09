@@ -3,7 +3,7 @@ import { handleApiError } from '../../api-errors.js'
 import { SEARCH_ERROR_RULES } from '../search-shared.js'
 import { output, type OutputOptions } from '../../output.js'
 import { requireCredentials } from '../../session.js'
-import { formatAddress, formatDate } from '../thread/list.js'
+import { formatDate, formatSender } from '../thread/list.js'
 
 interface EmailAttachment {
   object: string
@@ -39,7 +39,7 @@ interface EmailSearchResponse {
 }
 
 export function formatEmailSummary(email: Email): string {
-  const from = email.from?.[0] ? formatAddress(email.from[0]) : 'Unknown'
+  const from = formatSender(email.from)
   const subject = email.subject || '(no subject)'
   const date = formatDate(email.date)
   const attachments = email.attachments?.length ? `  [${email.attachments.length} attachment${email.attachments.length === 1 ? '' : 's'}]` : ''
@@ -51,6 +51,17 @@ export function formatEmailSummary(email: Email): string {
   ]
   if (email.snippet) lines.push(`  ${email.snippet}`)
   return lines.join('\n')
+}
+
+export function formatEmailSearchResults(response: EmailSearchResponse): string {
+  if (response.data.length === 0) return 'No emails matched the query.'
+
+  const lines = response.data.map(formatEmailSummary)
+  if (response.has_more && response.next_cursor) {
+    lines.push(`\n--- More results available (cursor: ${response.next_cursor}) ---`)
+  }
+
+  return lines.join('\n\n')
 }
 
 export async function emailSearchCommand(
@@ -78,17 +89,10 @@ export async function emailSearchCommand(
       data: response.data,
     }
 
-    const textLines = response.data.map(formatEmailSummary)
-    if (response.has_more && response.next_cursor) {
-      textLines.push(`\n--- More results available (cursor: ${response.next_cursor}) ---`)
-    }
-
-    const quietValue = response.data.map((e) => e.uuid).join('\n')
-
     output(data, {
       ...options,
-      text: textLines.length > 0 ? textLines.join('\n\n') : 'No emails matched the query.',
-      quietValue,
+      text: () => formatEmailSearchResults(response),
+      quietValue: () => response.data.map((e) => e.uuid).join('\n'),
     })
   } catch (error) {
     handleApiError(error, options, {

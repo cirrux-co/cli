@@ -114,8 +114,8 @@ export async function draftCreateCommand(options: DraftCreateOptions): Promise<v
 
     output(draft as unknown as Record<string, unknown>, {
       ...options,
-      text: summary(draft),
-      quietValue: draft.uuid,
+      text: () => summary(draft),
+      quietValue: () => draft.uuid,
     })
   } catch (error) {
     handleApiError(error, options, { action: 'Create draft', scope: 'email' })

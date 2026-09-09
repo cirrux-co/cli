@@ -73,8 +73,8 @@ export async function driveUploadCommand(
     const file = await uploadFile({ path: options.file, folderUuid, name, contentType, size, options })
     output(file as unknown as Record<string, unknown>, {
       ...options,
-      text: `Uploaded ${file.name} (${file.uuid})`,
-      quietValue: file.uuid,
+      text: () => `Uploaded ${file.name} (${file.uuid})`,
+      quietValue: () => file.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, {

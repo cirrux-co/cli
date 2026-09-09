@@ -106,13 +106,14 @@ export async function mailboxFiltersListCommand(
     const response = await authedRequest<MailboxFiltersResponse>(filtersPath(mailboxUuid))
 
     const data = { object: response.object, data: response.data }
-    const lines = response.data.map((f) => `${f.uuid}\t${f.status}\t${f.name}`)
-    const quietValue = response.data.map((f) => f.uuid).join('\n')
 
     output(data, {
       ...options,
-      text: lines.length > 0 ? lines.join('\n') : 'No filters found.',
-      quietValue,
+      text: () =>
+        response.data.length > 0
+          ? response.data.map((f) => `${f.uuid}\t${f.status}\t${f.name}`).join('\n')
+          : 'No filters found.',
+      quietValue: () => response.data.map((f) => f.uuid).join('\n'),
     })
   } catch (error) {
     handleFilterError(error, options, { action: 'List filters', notFound: `Mailbox '${mailboxUuid}' not found.` })
@@ -131,8 +132,8 @@ export async function mailboxFiltersGetCommand(
 
     output(filter as unknown as Record<string, unknown>, {
       ...options,
-      text: `${filter.uuid}\t${filter.status}\t${filter.name}`,
-      quietValue: filter.uuid,
+      text: () => `${filter.uuid}\t${filter.status}\t${filter.name}`,
+      quietValue: () => filter.uuid,
     })
   } catch (error) {
     handleFilterError(error, options, { action: 'Get filter', notFound: `Filter '${filterUuid}' not found.` })
@@ -151,8 +152,8 @@ export async function mailboxFiltersCreateCommand(
 
     output(filter as unknown as Record<string, unknown>, {
       ...options,
-      text: `Created filter ${filter.name} (${filter.uuid})`,
-      quietValue: filter.uuid,
+      text: () => `Created filter ${filter.name} (${filter.uuid})`,
+      quietValue: () => filter.uuid,
     })
   } catch (error) {
     handleFilterError(error, options, { action: 'Create filter', notFound: `Mailbox '${mailboxUuid}' not found.` })
@@ -172,8 +173,8 @@ export async function mailboxFiltersUpdateCommand(
 
     output(filter as unknown as Record<string, unknown>, {
       ...options,
-      text: `Updated filter ${filter.name} (${filter.uuid})`,
-      quietValue: filter.uuid,
+      text: () => `Updated filter ${filter.name} (${filter.uuid})`,
+      quietValue: () => filter.uuid,
     })
   } catch (error) {
     handleFilterError(error, options, { action: 'Update filter', notFound: `Filter '${filterUuid}' not found.` })
@@ -192,8 +193,8 @@ export async function mailboxFiltersDeleteCommand(
 
     output({ uuid: filterUuid, deleted: true }, {
       ...options,
-      text: `Deleted filter ${filterUuid}`,
-      quietValue: filterUuid,
+      text: () => `Deleted filter ${filterUuid}`,
+      quietValue: () => filterUuid,
     })
   } catch (error) {
     handleFilterError(error, options, { action: 'Delete filter', notFound: `Filter '${filterUuid}' not found.` })

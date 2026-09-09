@@ -17,8 +17,8 @@ export async function driveFolderRenameCommand(
 
     output(folder as unknown as Record<string, unknown>, {
       ...options,
-      text: `Renamed folder to ${folder.name} (${folder.uuid})`,
-      quietValue: folder.uuid,
+      text: () => `Renamed folder to ${folder.name} (${folder.uuid})`,
+      quietValue: () => folder.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, { action: 'Rename folder', notFound: `Folder '${uuid}' not found.` })

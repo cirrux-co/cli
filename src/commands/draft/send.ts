@@ -16,8 +16,8 @@ export async function draftSendCommand(uuid: string, options: OutputOptions): Pr
 
     output(email as unknown as Record<string, unknown>, {
       ...options,
-      text: summary(email, 'Sent draft'),
-      quietValue: email.uuid,
+      text: () => summary(email, 'Sent draft'),
+      quietValue: () => email.uuid,
     })
   } catch (error) {
     handleApiError(error, options, {

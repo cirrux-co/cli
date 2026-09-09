@@ -19,17 +19,16 @@ export async function attachmentGetCommand(uuid: string, options: OutputOptions)
       `public_api/v1/email_attachments/${encodeURIComponent(uuid)}`,
     )
 
-    const lines = [
-      `UUID:         ${attachment.uuid}`,
-      `Filename:     ${attachment.filename}`,
-      `Content-Type: ${attachment.content_type}`,
-      `Size:         ${attachment.file_size_bytes} bytes`,
-    ]
-
     output(attachment as unknown as Record<string, unknown>, {
       ...options,
-      text: lines.join('\n'),
-      quietValue: attachment.uuid,
+      text: () =>
+        [
+          `UUID:         ${attachment.uuid}`,
+          `Filename:     ${attachment.filename}`,
+          `Content-Type: ${attachment.content_type}`,
+          `Size:         ${attachment.file_size_bytes} bytes`,
+        ].join('\n'),
+      quietValue: () => attachment.uuid,
     })
   } catch (error) {
     handleApiError(error, options, {

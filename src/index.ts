@@ -69,6 +69,9 @@ import { driveShareGetCommand } from './commands/drive/share/get.js'
 import { driveShareRevokeCommand } from './commands/drive/share/revoke.js'
 import { calendarListCommand } from './commands/calendar/list.js'
 import { calendarEventsListCommand } from './commands/calendar/events/list.js'
+import { calendarEventsCreateCommand } from './commands/calendar/events/create.js'
+import { calendarEventsUpdateCommand } from './commands/calendar/events/update.js'
+import { calendarEventsDeleteCommand } from './commands/calendar/events/delete.js'
 import { contactsAddressbooksCommand } from './commands/contacts/addressbooks.js'
 import { contactsListCommand } from './commands/contacts/list.js'
 import { contactsGetCommand } from './commands/contacts/get.js'
@@ -510,7 +513,7 @@ attachment
 
 const calendar = program
   .command('calendar')
-  .description('Read calendars and their events')
+  .description('Read and change calendars and their events')
 
 calendar
   .command('list')
@@ -521,7 +524,7 @@ calendar
 
 const calendarEvents = calendar
   .command('events')
-  .description('Read events on a calendar')
+  .description('Read and change events on a calendar')
 
 calendarEvents
   .command('list')
@@ -538,6 +541,86 @@ calendarEvents
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only occurrence IDs, one per line (for piping)')
   .action(calendarEventsListCommand)
+
+calendarEvents
+  .command('create')
+  .description('Create an event')
+  .argument('<calendar-uuid>', 'Calendar UUID (from `cirrux calendar list`)')
+  .requiredOption('--title <title>', 'Event title')
+  .requiredOption('--start <when>', 'Start: 2026-09-02T09:00 (timed) or 2026-09-02 (with --all-day)')
+  .requiredOption('--end <when>', 'End. For an all-day event this date is EXCLUSIVE')
+  .option('--all-day', 'All-day event; --start and --end are YYYY-MM-DD dates')
+  .option('--timezone <iana>', "IANA timezone for a timed event. Defaults to this machine's")
+  .option('--location <location>', 'Where it happens')
+  .option('--description <text>', 'Longer description')
+  .option('--url <url>', 'Associated URL')
+  .option('--transparency <value>', 'Busy or free: opaque | transparent')
+  .option('--recurrence <rrule>', 'Repeat rule, e.g. "FREQ=WEEKLY;BYDAY=WE"')
+  .option('--attendee <email...>', 'Guest, as an email or "Name <email>". Guests are emailed an invite')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new event ID (for piping)')
+  .addHelpText(
+    'after',
+    '\nExamples:\n' +
+      '  $ cirrux calendar events create <calendar-uuid> --title "Coffee" \\\n' +
+      '      --start 2026-09-02T10:00 --end 2026-09-02T10:30\n' +
+      '  $ cirrux calendar events create <calendar-uuid> --title "Offsite" --all-day \\\n' +
+      '      --start 2026-09-02 --end 2026-09-04   # end date is exclusive\n' +
+      '  $ cirrux calendar events create <calendar-uuid> --title "Standup" \\\n' +
+      '      --start 2026-09-02T09:00 --end 2026-09-02T09:15 --recurrence "FREQ=WEEKLY;BYDAY=WE"',
+  )
+  .action(calendarEventsCreateCommand)
+
+calendarEvents
+  .command('update')
+  .description('Change an event, or one occurrence of a repeating one')
+  .argument('<calendar-uuid>', 'Calendar UUID (from `cirrux calendar list`)')
+  .argument(
+    '<event-id>',
+    'Event UUID for the whole event, or an occurrence ID from `events list` for just that one',
+  )
+  .option('--title <title>', 'Event title')
+  .option('--start <when>', 'New start. Must be given together with --end')
+  .option('--end <when>', 'New end. Must be given together with --start')
+  .option('--all-day', 'Make it all-day; --start and --end are YYYY-MM-DD dates')
+  .option('--timezone <iana>', "IANA timezone for a timed event. Defaults to this machine's")
+  .option('--location <location>', 'Where it happens')
+  .option('--description <text>', 'Longer description')
+  .option('--url <url>', 'Associated URL')
+  .option('--transparency <value>', 'Busy or free: opaque | transparent')
+  .option('--recurrence <rrule>', 'Repeat rule. Pass "" to stop it repeating')
+  .option('--attendee <email...>', 'Replace the whole guest list with these people')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the event ID (for piping)')
+  .addHelpText(
+    'after',
+    '\nThe ID decides the scope: an event UUID changes the whole event (every occurrence, if it\n' +
+      'repeats), while an occurrence ID changes only that one and splits it out of the series.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux calendar events update <calendar-uuid> <event-uuid> --location "Room 2"\n' +
+      '  $ cirrux calendar events update <calendar-uuid> <uuid>_20260909T070000Z --title "Long standup"',
+  )
+  .action(calendarEventsUpdateCommand)
+
+calendarEvents
+  .command('delete')
+  .description('Delete an event, or cancel one occurrence of a repeating one')
+  .argument('<calendar-uuid>', 'Calendar UUID (from `cirrux calendar list`)')
+  .argument(
+    '<event-id>',
+    'Event UUID for the whole event, or an occurrence ID from `events list` for just that one',
+  )
+  .option('--yes', 'Skip the confirmation prompt (required when not running in a terminal)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted event ID (for piping)')
+  .addHelpText(
+    'after',
+    '\nGuests are emailed a cancellation, so this confirms first unless --yes is passed.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux calendar events delete <calendar-uuid> <event-uuid> --yes\n' +
+      '  $ cirrux calendar events delete <calendar-uuid> <uuid>_20260909T070000Z --yes',
+  )
+  .action(calendarEventsDeleteCommand)
 
 const contacts = program
   .command('contacts')

@@ -18,8 +18,8 @@ export async function driveShareCreateCommand(
     // The copy runs asynchronously; status is 'pending' until it is ready.
     output(link as unknown as Record<string, unknown>, {
       ...options,
-      text: `${link.url}\t(${link.status})`,
-      quietValue: link.url,
+      text: () => `${link.url}\t(${link.status})`,
+      quietValue: () => link.url,
     })
   } catch (error) {
     handleDriveError(error, options, {

@@ -17,8 +17,8 @@ export async function driveShareRevokeCommand(
 
     output({ uuid, revoked: true }, {
       ...options,
-      text: `Revoked public link for ${uuid}`,
-      quietValue: uuid,
+      text: () => `Revoked public link for ${uuid}`,
+      quietValue: () => uuid,
     })
   } catch (error) {
     handleDriveError(error, options, {

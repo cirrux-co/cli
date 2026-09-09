@@ -26,6 +26,8 @@ Every command supports a `--json` flag for structured output.
 
 Use the shared `output` utility (`src/output.ts`) so every command gets this for free.
 
+**Render lazily.** `text` and `quietValue` are thunks, and `output` only invokes the one it is about to print. Build the human string *inside* the thunk, never in a local above the call: formatters run against whatever the API returned, and one odd record (an email with no `From:` header) must not be able to take `--json` down with it. A caller who hits such a record needs `--json` to still be a way through. For the pure "render both modes at once" helpers, wrap the call in `deferred(() => formatX(response))` so the helper stays a plain, unit-testable function.
+
 ## 3. Meaningful exit codes
 
 Go beyond 0/1. Use the shared constants from `src/exit-codes.ts`:
@@ -67,6 +69,7 @@ Between `--json`, `--quiet`, and plain text, the three output modes cover the va
 - Echo back the failing input ("domain 'foo.bar' not found")
 - Suggest next steps ("Run `cirrux login` first")
 - Distinguish transient errors (network timeout — retry) from permanent ones (not found — don't retry)
+- Distinguish *our* failures from the API's: a formatter that throws exits 1 with type `format_error`, not `api_error`. Integrations back off or fail over differently for "the server rejected this" than for "the CLI could not print it", and the hint points at `--json`, which is unaffected.
 
 ## 8. Self-documenting help
 

@@ -67,8 +67,8 @@ export async function driveReplaceCommand(uuid: string, options: ReplaceOptions)
     const file = await replaceFile({ uuid, path: options.file, contentType: options.contentType, size, options })
     output(file as unknown as Record<string, unknown>, {
       ...options,
-      text: `Replaced ${file.name} (${file.uuid})`,
-      quietValue: file.uuid,
+      text: () => `Replaced ${file.name} (${file.uuid})`,
+      quietValue: () => file.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, {

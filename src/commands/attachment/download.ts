@@ -20,8 +20,8 @@ export async function attachmentDownloadCommand(uuid: string, options: OutputOpt
     if (options.json) {
       output(result as unknown as Record<string, unknown>, {
         ...options,
-        text: '',
-        quietValue: result.data,
+        text: () => '',
+        quietValue: () => result.data,
       })
       return
     }

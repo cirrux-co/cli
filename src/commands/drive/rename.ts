@@ -17,8 +17,8 @@ export async function driveRenameCommand(
 
     output(file as unknown as Record<string, unknown>, {
       ...options,
-      text: `Renamed to ${file.name} (${file.uuid})`,
-      quietValue: file.uuid,
+      text: () => `Renamed to ${file.name} (${file.uuid})`,
+      quietValue: () => file.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, { action: 'Rename', notFound: `File '${uuid}' not found.` })

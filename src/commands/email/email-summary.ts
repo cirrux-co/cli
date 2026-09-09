@@ -1,4 +1,4 @@
-import { formatAddress } from '../thread/list.js'
+import { formatAddresses } from '../thread/list.js'
 
 export interface EmailAttachment {
   object: string
@@ -25,9 +25,7 @@ export interface Email {
 }
 
 export function summary(email: Email, action: string): string {
-  const from = email.from?.map(formatAddress).join(', ') ?? 'Unknown'
+  const from = formatAddresses(email.from)
   const subject = email.subject || '(no subject)'
   return `${action} ${email.uuid}\n  ${subject}\n  From: ${from}`
 }
-
-export { formatAddress }

@@ -1,5 +1,5 @@
 import { authedRequest } from '../../api.js'
-import { output, type OutputOptions } from '../../output.js'
+import { deferred, output, type OutputOptions } from '../../output.js'
 import {
   type ContactListResponse,
   formatContactResults,
@@ -25,7 +25,7 @@ export async function contactsListCommand(
 
     output(response as unknown as Record<string, unknown>, {
       ...options,
-      ...formatContactResults(response, 'This addressbook has no contacts.'),
+      ...deferred(() => formatContactResults(response, 'This addressbook has no contacts.')),
     })
   } catch (error) {
     handleContactError(error, options, {

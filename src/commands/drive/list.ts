@@ -1,5 +1,5 @@
 import { authedRequest } from '../../api.js'
-import { output, type OutputOptions } from '../../output.js'
+import { deferred, output, type OutputOptions } from '../../output.js'
 import { type DriveFile, type DriveFolder, handleDriveError, requireCredentials } from './drive-shared.js'
 
 interface DriveListResponse {
@@ -35,7 +35,7 @@ export async function driveListCommand(folderUuid: string | undefined, options: 
 
     output(response as unknown as Record<string, unknown>, {
       ...options,
-      ...formatDriveList(response),
+      ...deferred(() => formatDriveList(response)),
     })
   } catch (error) {
     handleDriveError(error, options, {

@@ -1,5 +1,5 @@
 import { test, expect, spyOn, beforeEach, afterEach } from 'bun:test'
-import { output, outputError } from './output.js'
+import { deferred, output, outputError } from './output.js'
 import { ExitCode } from './exit-codes.js'
 
 let stdoutSpy: ReturnType<typeof spyOn>
@@ -21,23 +21,23 @@ afterEach(() => {
 })
 
 test('output --json emits a single JSON line to stdout', () => {
-  output({ hello: 'world' }, { json: true, text: 'unused' })
+  output({ hello: 'world' }, { json: true, text: () => 'unused' })
   expect(stdoutSpy).toHaveBeenCalledTimes(1)
   expect(stdoutSpy).toHaveBeenCalledWith('{"hello":"world"}\n')
 })
 
 test('output --quiet emits only the quietValue to stdout', () => {
-  output({ hello: 'world' }, { quiet: true, text: 'human readable', quietValue: 'abc-123' })
+  output({ hello: 'world' }, { quiet: true, text: () => 'human readable', quietValue: () => 'abc-123' })
   expect(stdoutSpy).toHaveBeenCalledWith('abc-123\n')
 })
 
 test('output --quiet with no quietValue emits a blank line', () => {
-  output({}, { quiet: true, text: 'unused' })
+  output({}, { quiet: true, text: () => 'unused' })
   expect(stdoutSpy).toHaveBeenCalledWith('\n')
 })
 
 test('output default emits the text to stdout', () => {
-  output({ hello: 'world' }, { text: 'Hello, world!' })
+  output({ hello: 'world' }, { text: () => 'Hello, world!' })
   expect(stdoutSpy).toHaveBeenCalledWith('Hello, world!\n')
   expect(stderrSpy).not.toHaveBeenCalled()
 })
@@ -78,4 +78,73 @@ test('outputError --json with no hint omits the hint field', () => {
   ).toThrow('__exit__:1')
 
   expect(stdoutSpy).toHaveBeenCalledWith('{"error":{"type":"error","message":"Boom"}}\n')
+})
+
+test('output --json never runs the text renderer', () => {
+  let rendered = false
+  output({ hello: 'world' }, {
+    json: true,
+    text: () => {
+      rendered = true
+      return 'unused'
+    },
+  })
+
+  expect(rendered).toBe(false)
+})
+
+test('output --json survives a text renderer that throws', () => {
+  output({ hello: 'world' }, {
+    json: true,
+    text: () => {
+      throw new TypeError("Cannot read properties of undefined (reading 'name')")
+    },
+  })
+
+  expect(stdoutSpy).toHaveBeenCalledWith('{"hello":"world"}\n')
+})
+
+test('output reports a throwing text renderer as format_error, not an API failure', () => {
+  expect(() =>
+    output({ hello: 'world' }, {
+      json: false,
+      text: () => {
+        throw new TypeError("Cannot read properties of undefined (reading 'name')")
+      },
+    }),
+  ).toThrow('__exit__:1')
+
+  expect(stderrSpy).toHaveBeenCalledWith(
+    "Error: Could not format the response for display: Cannot read properties of undefined (reading 'name')\n",
+  )
+  expect(stderrSpy).toHaveBeenCalledWith('Hint: Re-run with --json to get the raw response.\n')
+})
+
+test('output --quiet reports a throwing quietValue renderer as format_error', () => {
+  expect(() =>
+    output({ hello: 'world' }, {
+      quiet: true,
+      text: () => 'unused',
+      quietValue: () => {
+        throw new Error('boom')
+      },
+    }),
+  ).toThrow('__exit__:1')
+
+  expect(stderrSpy).toHaveBeenCalledWith('Error: Could not format the response for display: boom\n')
+})
+
+test('deferred formatters do not run under --json', () => {
+  let calls = 0
+  const format = (): { text: string; quietValue: string } => {
+    calls += 1
+    return { text: 'human', quietValue: 'uuid' }
+  }
+
+  output({ hello: 'world' }, { json: true, ...deferred(format) })
+  expect(calls).toBe(0)
+
+  output({ hello: 'world' }, { quiet: true, ...deferred(format) })
+  expect(calls).toBe(1)
+  expect(stdoutSpy).toHaveBeenLastCalledWith('uuid\n')
 })

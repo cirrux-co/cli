@@ -17,8 +17,8 @@ export async function draftDeleteCommand(uuid: string, options: OutputOptions): 
       { uuid, deleted: true },
       {
         ...options,
-        text: `Deleted draft ${uuid}`,
-        quietValue: uuid,
+        text: () => `Deleted draft ${uuid}`,
+        quietValue: () => uuid,
       },
     )
   } catch (error) {

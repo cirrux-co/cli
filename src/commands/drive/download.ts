@@ -58,7 +58,7 @@ export async function driveDownloadCommand(uuid: string, options: DownloadOption
             size: data.byteLength,
             data: data.toString('base64url'),
           },
-          { ...options, text: '' },
+          { ...options, text: () => '' },
         )
       } else {
         process.stdout.write(data.toString('base64url') + '\n')
@@ -69,8 +69,8 @@ export async function driveDownloadCommand(uuid: string, options: DownloadOption
     if (options.output) {
       output({ uuid: init.file_uuid, path: options.output }, {
         ...options,
-        text: `Downloaded to ${options.output}`,
-        quietValue: options.output,
+        text: () => `Downloaded to ${options.output}`,
+        quietValue: () => options.output ?? '',
       })
     }
   } catch (error) {

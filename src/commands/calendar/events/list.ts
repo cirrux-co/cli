@@ -1,6 +1,6 @@
 import { authedRequest } from '../../../api.js'
 import { ExitCode } from '../../../exit-codes.js'
-import { output, outputError, type OutputOptions } from '../../../output.js'
+import { deferred, output, outputError, type OutputOptions } from '../../../output.js'
 import {
   type CalendarEvent,
   type CalendarEventListResponse,
@@ -204,7 +204,7 @@ export async function calendarEventsListCommand(
 
     output(response as unknown as Record<string, unknown>, {
       ...options,
-      ...formatCalendarEvents(response),
+      ...deferred(() => formatCalendarEvents(response)),
     })
   } catch (error) {
     handleCalendarError(error, options, {

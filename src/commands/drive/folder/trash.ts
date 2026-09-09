@@ -13,8 +13,8 @@ export async function driveFolderTrashCommand(uuid: string, options: OutputOptio
 
     output(folder as unknown as Record<string, unknown>, {
       ...options,
-      text: `Trashed folder ${folder.name} (${folder.uuid})`,
-      quietValue: folder.uuid,
+      text: () => `Trashed folder ${folder.name} (${folder.uuid})`,
+      quietValue: () => folder.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, { action: 'Trash folder', notFound: `Folder '${uuid}' not found.` })

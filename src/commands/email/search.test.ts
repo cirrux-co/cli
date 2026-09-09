@@ -61,3 +61,8 @@ test('formatEmailSummary falls back to "(no subject)" when subject is empty', ()
   const out = formatEmailSummary({ ...baseEmail, subject: '' })
   expect(out).toContain('(no subject)')
 })
+
+test('formatEmailSummary renders an email with no From: header', () => {
+  const out = formatEmailSummary({ ...baseEmail, from: [] })
+  expect(out).toContain('From: Unknown')
+})

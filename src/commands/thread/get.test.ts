@@ -79,3 +79,8 @@ test('formatThreadDetail handles an empty thread gracefully', () => {
   const out = formatThreadDetail({ ...baseThread, emails: [] })
   expect(out).toContain('(no emails)')
 })
+
+test('formatEmailLine renders an email with no From: header', () => {
+  const out = formatEmailLine({ ...baseEmail, from: [] })
+  expect(out).toContain('Unknown')
+})

@@ -16,8 +16,8 @@ export async function driveShareGetCommand(
 
     output(sharing as unknown as Record<string, unknown>, {
       ...options,
-      text: formatSharing(sharing),
-      quietValue: sharing.public_link?.url ?? '',
+      text: () => formatSharing(sharing),
+      quietValue: () => sharing.public_link?.url ?? '',
     })
   } catch (error) {
     handleDriveError(error, options, {

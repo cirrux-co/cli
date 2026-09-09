@@ -1,4 +1,5 @@
-import { handleApiError } from '../../api-errors.js'
+import { handleApiError, type ApiErrorRule } from '../../api-errors.js'
+import { ExitCode } from '../../exit-codes.js'
 import { type OutputOptions } from '../../output.js'
 
 export interface Calendar {
@@ -80,14 +81,45 @@ export interface CalendarEventListResponse {
 
 export { requireCredentials } from '../../session.js'
 
+export const CALENDAR_ERROR_RULES: ApiErrorRule[] = [
+  {
+    errorCode: 'not_authorized',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'you have read-only access to this calendar.',
+    hint: "Run 'cirrux calendar list' to see which calendars have can_write set.",
+  },
+  {
+    errorCode: 'calendar_read_only',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'this calendar mirrors an external feed, so its events cannot be changed.',
+  },
+  {
+    errorCode: 'not_organizer',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'only the organizer can change this event.',
+  },
+  {
+    errorCode: 'use_occurrence_id',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'that uuid names one already-edited occurrence of a series.',
+    hint: "Use the occurrence id from 'cirrux calendar events list' (<series-uuid>_<recurrence-id>).",
+  },
+  {
+    errorCode: 'exception_already_exists',
+    exitCode: ExitCode.CONFLICT,
+    reason: 'that occurrence has already been edited.',
+  },
+]
+
 /**
  * Map a failed calendar API call to a clear message + exit code. Binds the
- * scope wording; the ladder itself lives in `api-errors.ts`.
+ * scope wording and the calendar-specific rules; the ladder itself lives in
+ * `api-errors.ts`.
  */
 export function handleCalendarError(
   error: unknown,
   options: OutputOptions,
   context: { action: string; notFound?: string },
 ): never {
-  handleApiError(error, options, { ...context, scope: 'calendar' })
+  handleApiError(error, options, { ...context, scope: 'calendar', rules: CALENDAR_ERROR_RULES })
 }

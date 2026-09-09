@@ -8,20 +8,22 @@ import { CLI_VERSION } from '../version.js'
 // emails the team at help@cirrux.co. Agents running inside Claude Code are tagged
 // via the X-Cirrux-Co-Author header (added automatically by api.ts), so the team
 // can tell agent feedback from a human's.
+//
+// There is deliberately no `email` field here: that is the reply address a person
+// types into the web feedback form, and the CLI has no such field. The backend
+// stamps the signed-in sender (name, username and mailbox address) onto the email
+// itself, so the team can always reply.
 export const FEEDBACK_PATH = 'api/feedback'
 
 export function buildFeedbackBody({
   message,
-  email,
   version,
 }: {
   message: string
-  email: string
   version: string
 }): Record<string, unknown> {
   return {
     message,
-    email,
     url: '',
     client_version: version,
     app: 'Cirrux CLI',
@@ -63,30 +65,18 @@ export async function feedbackCommand(
     })
   }
 
-  // Best-effort: attach the signed-in address so the team can reply. Failing to
-  // resolve it never blocks the feedback from going out.
-  let email = ''
-  try {
-    const profile = await authedRequest<{ user?: { username?: string } }>(
-      'public_api/v1/user/profile',
-    )
-    email = profile.user?.username ?? ''
-  } catch {
-    // Non-fatal — send the feedback without a reply-to address.
-  }
-
   try {
     await authedRequest(FEEDBACK_PATH, {
       method: 'POST',
-      body: buildFeedbackBody({ message: text, email, version: CLI_VERSION }),
+      body: buildFeedbackBody({ message: text, version: CLI_VERSION }),
     })
 
     output(
       { success: true },
       {
         ...options,
-        text: 'Thanks! Your feedback has been sent to the Cirrux team.',
-        quietValue: 'ok',
+        text: () => 'Thanks! Your feedback has been sent to the Cirrux team.',
+        quietValue: () => 'ok',
       },
     )
   } catch (error) {

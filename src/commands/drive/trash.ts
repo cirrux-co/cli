@@ -13,8 +13,8 @@ export async function driveTrashCommand(uuid: string, options: OutputOptions): P
 
     output(file as unknown as Record<string, unknown>, {
       ...options,
-      text: `Trashed ${file.name} (${file.uuid})`,
-      quietValue: file.uuid,
+      text: () => `Trashed ${file.name} (${file.uuid})`,
+      quietValue: () => file.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, { action: 'Trash', notFound: `File '${uuid}' not found.` })

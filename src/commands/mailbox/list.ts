@@ -29,13 +29,13 @@ export async function mailboxListCommand(options: OutputOptions): Promise<void> 
       data: response.data,
     }
 
-    const lines = response.data.map((m) => `${m.uuid}\t${m.primary_address}`)
-    const quietValue = response.data.map((m) => m.uuid).join('\n')
-
     output(data, {
       ...options,
-      text: lines.length > 0 ? lines.join('\n') : 'No mailboxes found.',
-      quietValue,
+      text: () =>
+        response.data.length > 0
+          ? response.data.map((m) => `${m.uuid}\t${m.primary_address}`).join('\n')
+          : 'No mailboxes found.',
+      quietValue: () => response.data.map((m) => m.uuid).join('\n'),
     })
   } catch (error) {
     handleApiError(error, options, { action: 'List mailboxes', scope: 'email' })

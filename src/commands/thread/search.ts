@@ -3,7 +3,7 @@ import { handleApiError } from '../../api-errors.js'
 import { SEARCH_ERROR_RULES } from '../search-shared.js'
 import { output, type OutputOptions } from '../../output.js'
 import { requireCredentials } from '../../session.js'
-import { formatThread } from './list.js'
+import { formatThreadList } from './list.js'
 
 interface EmailAttachment {
   object: string
@@ -72,17 +72,10 @@ export async function threadSearchCommand(
       data: response.data,
     }
 
-    const textLines = response.data.map(formatThread)
-    if (response.has_more && response.next_cursor) {
-      textLines.push(`\n--- More results available (cursor: ${response.next_cursor}) ---`)
-    }
-
-    const quietValue = response.data.map((t) => t.uuid).join('\n')
-
     output(data, {
       ...options,
-      text: textLines.length > 0 ? textLines.join('\n\n') : 'No threads matched the query.',
-      quietValue,
+      text: () => formatThreadList(response, 'No threads matched the query.'),
+      quietValue: () => response.data.map((t) => t.uuid).join('\n'),
     })
   } catch (error) {
     handleApiError(error, options, {

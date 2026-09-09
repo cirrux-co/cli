@@ -1,5 +1,5 @@
 import { authedRequest } from '../../api.js'
-import { output, type OutputOptions } from '../../output.js'
+import { deferred, output, type OutputOptions } from '../../output.js'
 import {
   type AddressbookListResponse,
   formatAddressbookList,
@@ -15,7 +15,7 @@ export async function contactsAddressbooksCommand(options: OutputOptions): Promi
 
     output(response as unknown as Record<string, unknown>, {
       ...options,
-      ...formatAddressbookList(response),
+      ...deferred(() => formatAddressbookList(response)),
     })
   } catch (error) {
     handleContactError(error, options, { action: 'List addressbooks' })

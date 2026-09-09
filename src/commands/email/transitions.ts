@@ -45,8 +45,8 @@ async function runTransition(
 
     output(email as unknown as Record<string, unknown>, {
       ...options,
-      text: summary(email, `${VERB_LABELS[verb]}:`),
-      quietValue: email.uuid,
+      text: () => summary(email, `${VERB_LABELS[verb]}:`),
+      quietValue: () => email.uuid,
     })
   } catch (error) {
     handleApiError(error, options, {
@@ -100,8 +100,8 @@ export async function emailMoveCommand(
 
     output(email as unknown as Record<string, unknown>, {
       ...options,
-      text: summary(email, `Moved to '${target.value}':`),
-      quietValue: email.uuid,
+      text: () => summary(email, `Moved to '${target.value}':`),
+      quietValue: () => email.uuid,
     })
   } catch (error) {
     handleApiError(error, options, {

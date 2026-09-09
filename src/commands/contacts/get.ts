@@ -17,8 +17,8 @@ export async function contactsGetCommand(uuid: string, options: OutputOptions): 
 
     output(contact as unknown as Record<string, unknown>, {
       ...options,
-      text: formatContact(contact),
-      quietValue: contact.uuid,
+      text: () => formatContact(contact),
+      quietValue: () => contact.uuid,
     })
   } catch (error) {
     handleContactError(error, options, { action: 'Fetch contact', notFound: 'Contact not found.' })

@@ -30,8 +30,8 @@ export async function driveFolderMoveCommand(uuid: string, options: MoveFolderOp
 
     output(folder as unknown as Record<string, unknown>, {
       ...options,
-      text: `Moved folder ${folder.name} to ${parentUuid ?? 'the root'} (${folder.uuid})`,
-      quietValue: folder.uuid,
+      text: () => `Moved folder ${folder.name} to ${parentUuid ?? 'the root'} (${folder.uuid})`,
+      quietValue: () => folder.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, {

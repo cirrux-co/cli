@@ -10,8 +10,8 @@ export async function driveGetCommand(uuid: string, options: OutputOptions): Pro
 
     output(file as unknown as Record<string, unknown>, {
       ...options,
-      text: `${file.uuid}\t${file.name}\t${file.content_type}\t${file.file_size_bytes}`,
-      quietValue: file.uuid,
+      text: () => `${file.uuid}\t${file.name}\t${file.content_type}\t${file.file_size_bytes}`,
+      quietValue: () => file.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, { action: 'Get', notFound: `File '${uuid}' not found.` })

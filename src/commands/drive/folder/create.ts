@@ -29,8 +29,8 @@ export async function driveFolderCreateCommand(options: CreateFolderOptions): Pr
 
     output(folder as unknown as Record<string, unknown>, {
       ...options,
-      text: `Created folder ${folder.name} (${folder.uuid})`,
-      quietValue: folder.uuid,
+      text: () => `Created folder ${folder.name} (${folder.uuid})`,
+      quietValue: () => folder.uuid,
     })
   } catch (error) {
     handleDriveError(error, options, {

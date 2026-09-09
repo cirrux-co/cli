@@ -1,5 +1,5 @@
 import { authedRequest } from '../../api.js'
-import { output, type OutputOptions } from '../../output.js'
+import { deferred, output, type OutputOptions } from '../../output.js'
 import {
   type ContactListResponse,
   formatContactResults,
@@ -32,7 +32,7 @@ export async function contactsSearchCommand(
       data: response.data,
     }
 
-    output(data, { ...options, ...formatContactResults(response) })
+    output(data, { ...options, ...deferred(() => formatContactResults(response)) })
   } catch (error) {
     handleContactError(error, options, {
       action: 'Search contacts',

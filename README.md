@@ -141,11 +141,16 @@ cirrux drive share create <folder-uuid> --folder
 cirrux drive share get <file-uuid>
 cirrux drive share revoke <file-uuid>
 
-# Calendars (read-only; recurring series come back already expanded)
+# Calendars (recurring series come back already expanded)
 cirrux calendar list
 cirrux calendar events list <calendar-uuid> --today
 cirrux calendar events list <calendar-uuid> --on 2026-09-02
 cirrux calendar events list <calendar-uuid> --from 2026-09-01 --to 2026-09-08
+cirrux calendar events create <calendar-uuid> --title "Coffee" --start 2026-09-02T10:00 --end 2026-09-02T10:30
+cirrux calendar events create <calendar-uuid> --title "Offsite" --all-day --start 2026-09-02 --end 2026-09-04
+cirrux calendar events update <calendar-uuid> <event-uuid> --location "Room 2"
+cirrux calendar events update <calendar-uuid> <uuid>_20260909T070000Z --title "Long standup"  # one occurrence
+cirrux calendar events delete <calendar-uuid> <event-uuid> --yes
 
 # Contacts (read-only; a contact lives in an addressbook)
 cirrux contacts addressbooks
@@ -188,6 +193,9 @@ cirrux contacts get <contact-uuid>
 | `cirrux drive share revoke <uuid> [--folder]`                         | Revoke the public link for a file or folder                                                          |
 | `cirrux calendar list`                                                | List calendars you can see (needs the `calendar.read` scope)                                         |
 | `cirrux calendar events list <calendar-uuid>`                         | Events in a window, recurring series already expanded (`--today`, `--on`, `--from`/`--to`, `--days`) |
+| `cirrux calendar events create <calendar-uuid>`                       | Create an event (`--title`, `--start`, `--end`, `--all-day`, `--recurrence`, `--attendee`)           |
+| `cirrux calendar events update <calendar-uuid> <event-id>`            | Change an event, or one occurrence when given an occurrence ID from `events list`                    |
+| `cirrux calendar events delete <calendar-uuid> <event-id>`            | Delete an event, or cancel one occurrence. Emails guests a cancellation, so confirms unless `--yes`  |
 | `cirrux contacts addressbooks`                                        | List your addressbooks (needs the `contacts.read` scope)                                             |
 | `cirrux contacts list <addressbook-uuid>`                             | List the contacts in one addressbook (`--limit`, `--cursor`)                                         |
 | `cirrux contacts search <query>`                                      | Substring search over contact names, company and email addresses (`--addressbook-uuid`)              |

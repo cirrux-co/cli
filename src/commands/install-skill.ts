@@ -56,8 +56,8 @@ export async function installSkillCommand(
     { status: 'installed', scope, path: target },
     {
       ...options,
-      text: `Installed Cirrux skill (${scope}-scoped) at ${target}`,
-      quietValue: target,
+      text: () => `Installed Cirrux skill (${scope}-scoped) at ${target}`,
+      quietValue: () => target,
     },
   )
 }
@@ -68,8 +68,8 @@ export function printSkillCommand(options: OutputOptions): void {
       { content: skillContent },
       {
         ...options,
-        text: skillContent,
-        quietValue: skillContent,
+        text: () => skillContent,
+        quietValue: () => skillContent,
       },
     )
     return

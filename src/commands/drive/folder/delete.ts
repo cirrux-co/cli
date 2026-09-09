@@ -10,8 +10,8 @@ export async function driveFolderDeleteCommand(uuid: string, options: OutputOpti
 
     output({ uuid, deleted: true }, {
       ...options,
-      text: `Deleted folder ${uuid}`,
-      quietValue: uuid,
+      text: () => `Deleted folder ${uuid}`,
+      quietValue: () => uuid,
     })
   } catch (error) {
     handleDriveError(error, options, { action: 'Delete folder', notFound: `Folder '${uuid}' not found.` })

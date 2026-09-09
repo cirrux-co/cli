@@ -58,8 +58,8 @@ export async function emailLabelsAddCommand(
 
     output(email as unknown as Record<string, unknown>, {
       ...options,
-      text: summary(email, `Added label '${target.value}':`),
-      quietValue: email.uuid,
+      text: () => summary(email, `Added label '${target.value}':`),
+      quietValue: () => email.uuid,
     })
   } catch (error) {
     handleApiError(error, options, {
@@ -93,8 +93,8 @@ export async function emailLabelsRemoveCommand(
 
     output(email as unknown as Record<string, unknown>, {
       ...options,
-      text: summary(email, `Removed label '${target.value}':`),
-      quietValue: email.uuid,
+      text: () => summary(email, `Removed label '${target.value}':`),
+      quietValue: () => email.uuid,
     })
   } catch (error) {
     handleApiError(error, options, {

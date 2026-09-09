@@ -10,8 +10,8 @@ export async function driveDeleteCommand(uuid: string, options: OutputOptions): 
 
     output({ uuid, deleted: true }, {
       ...options,
-      text: `Deleted ${uuid}`,
-      quietValue: uuid,
+      text: () => `Deleted ${uuid}`,
+      quietValue: () => uuid,
     })
   } catch (error) {
     handleDriveError(error, options, { action: 'Delete', notFound: `File '${uuid}' not found.` })

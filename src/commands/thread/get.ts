@@ -2,7 +2,7 @@ import { authedRequest } from '../../api.js'
 import { handleApiError } from '../../api-errors.js'
 import { output, type OutputOptions } from '../../output.js'
 import { requireCredentials } from '../../session.js'
-import { formatAddress, formatDate } from './list.js'
+import { formatDate, formatSender } from './list.js'
 
 interface EmailAttachment {
   object: string
@@ -38,7 +38,7 @@ interface Thread {
 }
 
 export function formatEmailLine(email: Email): string {
-  const from = email.from[0] ? formatAddress(email.from[0]) : 'Unknown'
+  const from = formatSender(email.from)
   const flags: string[] = []
   if (!email.read_at) flags.push('unread')
   if (email.flagged_at) flags.push('flagged')
@@ -65,12 +65,10 @@ export async function threadGetCommand(uuid: string, options: OutputOptions): Pr
   try {
     const thread = await authedRequest<Thread>(`public_api/v1/threads/${encodeURIComponent(uuid)}`)
 
-    const quietValue = thread.emails.map((e) => e.uuid).join('\n')
-
     output(thread as unknown as Record<string, unknown>, {
       ...options,
-      text: formatThreadDetail(thread),
-      quietValue,
+      text: () => formatThreadDetail(thread),
+      quietValue: () => thread.emails.map((e) => e.uuid).join('\n'),
     })
   } catch (error) {
     handleApiError(error, options, {

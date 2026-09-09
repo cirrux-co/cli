@@ -22,8 +22,8 @@ async function updateEmail(
 
     output(email as unknown as Record<string, unknown>, {
       ...options,
-      text: successText(email),
-      quietValue: email.uuid,
+      text: () => successText(email),
+      quietValue: () => email.uuid,
     })
   } catch (error) {
     handleApiError(error, options, {
