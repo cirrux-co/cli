@@ -14,7 +14,10 @@ brew install cirrux-co/tap/cirrux
 cirrux login            # browser-based OAuth
 cirrux whoami           # confirm which user and workspace you're on
 cirrux mailbox list     # list your mailboxes
+cirrux doctor           # check the install, sign-in and coding agent setup
 ```
+
+When `cirrux login` runs in a terminal and finds Claude Code or Codex on the machine, it offers to connect them (see [AI coding assistants](#ai-coding-assistants)).
 
 ### Logging in on a headless or remote machine
 
@@ -200,7 +203,8 @@ cirrux contacts get <contact-uuid>
 | `cirrux contacts list <addressbook-uuid>`                             | List the contacts in one addressbook (`--limit`, `--cursor`)                                         |
 | `cirrux contacts search <query>`                                      | Substring search over contact names, company and email addresses (`--addressbook-uuid`)              |
 | `cirrux contacts get <contact-uuid>`                                  | One contact with its email addresses and phone numbers                                               |
-| `cirrux skill install` / `cirrux skill print`                         | Install or preview the bundled agent skill                                                           |
+| `cirrux skill install` / `uninstall` / `print`                        | Connect coding agents to the bundled agent skill, remove it, or preview it                           |
+| `cirrux doctor`                                                       | Check the install, sign-in and each detected coding agent                                            |
 
 Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `in:inbox`/`in:sent`/`in:drafts`/`in:archive`/`in:trash`/`in:spam`/`in:snoozed`/`in:starred`, `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.
 
@@ -231,13 +235,21 @@ done
 
 ## AI coding assistants
 
-`cirrux` ships an agent skill that teaches Claude Code (and other skill-aware assistants) how to use this CLI — auth, output modes, the command tree, and common workflows.
+`cirrux` ships an agent skill that teaches Claude Code, Codex and other skill-aware assistants how to use this CLI: auth, output modes, the command tree, and common workflows.
 
 ```bash
-cirrux skill install              # ~/.claude/skills/cirrux/SKILL.md
-cirrux skill install --project    # ./.claude/skills/cirrux/SKILL.md (checked into the repo you're in)
+cirrux skill install              # ~/.agents/skills/cirrux, linked from ~/.claude/skills/cirrux
+cirrux skill install --project    # the same under the current directory, to check into a repo
+cirrux skill uninstall            # remove it again
 cirrux skill print                # preview the bundled skill content
+cirrux doctor                     # is every detected agent connected?
 ```
+
+There is one copy of the skill, in `~/.agents/skills/cirrux/`, where Codex and other Agent Skills tools look for it. Claude Code gets a symlink to it from `~/.claude/skills/cirrux` (a copy on systems without symlinks). An interactive `cirrux login` offers to do this for you when it finds an agent that is not connected yet.
+
+The skill follows the CLI: after an upgrade, the first command you run rewrites the installed skill to match the new version, so your assistant never works from instructions for the old one.
+
+The CLI marks every skill directory it writes with a `.managed-by-cirrux-cli` file and never writes, replaces or removes a skill directory without it, so a skill you wrote yourself at one of these paths is safe. Skills installed by releases before 0.39 have no marker; `cirrux doctor` points them out, and `cirrux skill install --force` replaces them.
 
 Once installed, ask your assistant something like _"show me the latest unread thread in my inbox"_ and it'll reach for the CLI.
 

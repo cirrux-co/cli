@@ -21,6 +21,7 @@ If the binary is missing, point the user at `brew install cirrux-co/tap/cirrux`.
 cirrux login     # browser-based OAuth
 cirrux whoami    # show current user + workspace
 cirrux logout
+cirrux doctor    # check version, sign-in and agent setup; every failure carries a hint
 ```
 
 Commands that hit the API fail with exit code `4` (`AUTH_REQUIRED`) when the user is not logged in. Suggest `cirrux login` in that case.
@@ -106,6 +107,15 @@ Every data-producing command supports three output modes:
 | 6    | Rate limited (retries exhausted)   |
 
 Check the exit code when scripting — don't grep error text. Every command that addresses a resource by id exits `3` when it does not exist (or you cannot see it), which is deliberately indistinguishable from "not yours". With `--json`, the error body also carries a machine-readable `type` (`not_found`, `insufficient_scope`, `invalid_query`, `name_taken`, …) if you need to branch more finely than the exit code allows.
+
+An id that isn't a valid UUID is a separate outcome: exit `2` with type `invalid_uuid`, never exit `3`. A well-formed id that happens to name nothing is not found; a malformed one means the value never came from the API in the first place. This is the failure a pipeline hits when an id is interpolated from something that produced nothing, so the two are worth distinguishing:
+
+```bash
+mb=$(cirrux mailbox list --json | jq -r '.data[0].uuid')  # the literal string "null" on an empty list
+cirrux draft create --mailbox-uuid "$mb" ...              # exit 2 invalid_uuid, not exit 3
+```
+
+`jq -r` prints `null` for a missing key rather than failing, so check the id before using it (or use `jq -e`) instead of letting the string reach the API.
 
 One type is worth special-casing: `format_error` (exit `1`) means the request succeeded and only the CLI's own rendering of the response failed. Nothing is wrong with the data or your credentials, and re-running the same command with `--json` returns it.
 

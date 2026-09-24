@@ -78,7 +78,9 @@ import { contactsGetCommand } from './commands/contacts/get.js'
 import { contactsSearchCommand } from './commands/contacts/search.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { feedbackCommand } from './commands/feedback.js'
-import { installSkillCommand, printSkillCommand } from './commands/install-skill.js'
+import { skillInstallCommand, skillPrintCommand, skillUninstallCommand } from './commands/skill.js'
+import { doctorCommand } from './commands/doctor.js'
+import { refreshSkillAfterUpgrade } from './skill.js'
 import { checkForUpdate } from './update-check.js'
 import { CLI_VERSION } from './version.js'
 
@@ -848,26 +850,43 @@ driveShare
   .option('--quiet', 'Output only the resource UUID (for piping)')
   .action(driveShareRevokeCommand)
 
+program
+  .command('doctor')
+  .description('Check the install, sign-in and coding agent setup')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only "ok" or "issues" (for piping)')
+  .action(doctorCommand)
+
 const skill = program
   .command('skill')
-  .description('Agent skill for Cirrux — makes AI coding assistants fluent in this CLI')
+  .description('Agent skill that makes AI coding assistants fluent in this CLI')
 
 skill
   .command('install')
-  .description('Install the Cirrux skill into your Claude Code config')
-  .option('--project', 'Install into ./.claude/skills/cirrux/ instead of ~/.claude/skills/cirrux/')
-  .option('--force', 'Overwrite an existing skill file')
+  .description('Install the Cirrux skill and connect the coding agents on this machine (Claude Code, Codex)')
+  .option('--project', 'Install into ./.agents/skills/cirrux/ (linked from ./.claude/skills/) instead of your home directory')
+  .option('--force', 'Replace a skill the Cirrux CLI did not install')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the installed path (for piping)')
-  .action(installSkillCommand)
+  .action(skillInstallCommand)
+
+skill
+  .command('uninstall')
+  .description('Remove the Cirrux skill and its agent links (leaves skills it did not install alone)')
+  .option('--project', 'Uninstall from the current directory instead of your home directory')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the removed paths, one per line (for piping)')
+  .action(skillUninstallCommand)
 
 skill
   .command('print')
   .description('Print the bundled SKILL.md contents to stdout')
   .option('--json', 'Wrap the content in a JSON object')
   .option('--quiet', 'Alias for printing the raw content')
-  .action(printSkillCommand)
+  .action(skillPrintCommand)
 
 program.parse()
+
+refreshSkillAfterUpgrade()
 
 await checkForUpdate(CLI_VERSION)

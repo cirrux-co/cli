@@ -48,6 +48,7 @@ Go beyond 0/1. Use the shared constants from `src/exit-codes.ts`:
 - Support `--yes` / `--force` for destructive operations.
 - Support `--dry-run` for mutations that change state.
 - The `login` command is the exception — it requires a browser.
+- After an interactive login, `login` may offer to connect detected coding agents with one `[Y/n]` question. It never asks under `--json` or without a TTY.
 
 ## 5. Idempotent where possible
 

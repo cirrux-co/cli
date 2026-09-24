@@ -20,6 +20,11 @@ function readCache(): UpdateCache | null {
   }
 }
 
+/** The latest release seen by the last update check, without touching the network. */
+export function cachedLatestVersion(): string | null {
+  return readCache()?.latest_version ?? null
+}
+
 function writeCache(cache: UpdateCache) {
   ensureConfigDir()
   writeFileSync(CACHE_FILE, JSON.stringify(cache))

@@ -1,3 +1,4 @@
+import { offerAgentSetup } from '../agent-setup.js'
 import { login } from '../auth.js'
 import { ExitCode } from '../exit-codes.js'
 import { outputError } from '../output.js'
@@ -12,5 +13,9 @@ export async function loginCommand(options: { browser?: boolean; json?: boolean 
       json: options.json,
       errorType: 'login_failed',
     })
+  }
+
+  if (!options.json && process.stdin.isTTY && process.stdout.isTTY) {
+    await offerAgentSetup()
   }
 }
