@@ -102,7 +102,7 @@ cat message.eml | cirrux draft create --mailbox-uuid <mailbox-uuid>
 cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md \
   --subject "Hi" --to alice@example.com --cc bob@example.com
 
-# Reply linking (either mode), then send or delete
+# Reply linking (either mode; --mailbox-uuid must be the parent's mailbox), then send or delete
 cirrux draft create --mailbox-uuid <mailbox-uuid> --file reply.eml --in-reply-to <email-uuid>
 cirrux draft send <draft-uuid>
 cirrux draft delete <draft-uuid>

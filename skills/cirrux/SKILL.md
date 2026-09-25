@@ -207,7 +207,7 @@ cirrux thread search "<query>"                         # cross-mailbox search (u
 ### Email
 
 ```bash
-cirrux email get <email-uuid>                 # email metadata (subject, from, to, labels, attachments)
+cirrux email get <email-uuid>                 # email metadata (mailbox, thread, subject, from, to, labels, attachments)
 cirrux email content <email-uuid> body        # rendered HTML body
 cirrux email content <email-uuid> raw         # full MIME message
 cirrux email search "<query>" --mailbox-uuid <uuid>  # search one mailbox (preferred — see Search section)
@@ -269,7 +269,7 @@ cirrux draft send <draft-uuid>                                         # send a 
 
 **Attachments on outgoing mail:** there is no `--attach` flag, and markdown mode cannot carry files. The **only** way to send an attachment is to build a complete, valid MIME message yourself (a `multipart/mixed` body with each file as a base64-encoded part, `Content-Disposition: attachment`) and pass it via `--file` / stdin. When you do, the backend decodes and stores those parts, so the resulting draft sends normally. A malformed or truncated MIME will either be rejected or silently drop the part — supply well-formed MIME. The `attachment` commands below are download-only and do not add files to a draft.
 
-Supply `--in-reply-to <email-uuid>` (in either mode) to link the draft to a parent email — it must belong to the same workspace. The response is the new draft (uuid, headers, body_html, body_text, labels include `draft`).
+Supply `--in-reply-to <email-uuid>` (in either mode) to link the draft to a parent email. The draft joins the parent's thread, so `--mailbox-uuid` must be the parent's mailbox (read it with `cirrux email get <email-uuid> --json | jq -r .mailbox_uuid`); any other mailbox is rejected with 422 (`mailbox_mismatch`) and the error names the right one. The response is the new draft (uuid, headers, body_html, body_text, labels include `draft`).
 
 `draft delete` returns 204 with no body. Deleting an email that isn't a draft returns 422 (`not_a_draft`); deleting a non-existent draft returns 404.
 
@@ -566,7 +566,6 @@ draft=$(cat <<EOF | cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$par
 From: me@example.com
 To: alice@example.com
 Subject: Re: Quarterly review
-In-Reply-To: <$parent>
 
 Thanks Alice — let's circle back next week.
 EOF

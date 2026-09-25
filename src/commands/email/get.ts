@@ -15,6 +15,7 @@ interface EmailAttachment {
 interface Email {
   object: string
   uuid: string
+  mailbox_uuid: string
   thread_uuid: string
   from: { name: string | null; address: string }[]
   to: { name: string | null; address: string }[]
@@ -36,6 +37,7 @@ export function formatEmailDetail(email: Email): string {
 
   return [
     `UUID:        ${email.uuid}`,
+    `Mailbox:     ${email.mailbox_uuid}`,
     `Thread:      ${email.thread_uuid}`,
     `Subject:     ${email.subject}`,
     `From:        ${formatAddresses(email.from)}`,

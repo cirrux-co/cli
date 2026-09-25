@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { authedRequest } from '../../api.js'
-import { handleApiError } from '../../api-errors.js'
+import { type ApiErrorRule, handleApiError } from '../../api-errors.js'
 import { ExitCode } from '../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
 import { type Draft, requireCredentials } from './draft-shared.js'
@@ -18,6 +18,16 @@ export interface DraftCreateOptions extends OutputOptions {
   // when the flag is passed. Only meaningful for a markdown reply.
   quoteOriginal?: boolean
 }
+
+// A reply has to live in its parent's mailbox, because that is where the thread
+// is. The API's description already names the right mailbox.
+export const DRAFT_CREATE_ERROR_RULES: ApiErrorRule[] = [
+  {
+    errorCode: 'mailbox_mismatch',
+    exitCode: ExitCode.USAGE_ERROR,
+    hint: "Pass the parent's mailbox as --mailbox-uuid. 'cirrux email get <email-uuid>' shows it.",
+  },
+]
 
 export interface DraftAddress {
   address: string
@@ -118,7 +128,7 @@ export async function draftCreateCommand(options: DraftCreateOptions): Promise<v
       quietValue: () => draft.uuid,
     })
   } catch (error) {
-    handleApiError(error, options, { action: 'Create draft', scope: 'email' })
+    handleApiError(error, options, { action: 'Create draft', scope: 'email', rules: DRAFT_CREATE_ERROR_RULES })
   }
 }
 

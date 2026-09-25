@@ -468,7 +468,7 @@ draft
   .option('--to <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
   .option('--cc <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
   .option('--bcc <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
-  .option('--in-reply-to <email-uuid>', 'Link this draft as a reply to an existing email')
+  .option('--in-reply-to <email-uuid>', "Link this draft as a reply to an existing email (--mailbox-uuid must be that email's mailbox)")
   .option(
     '--no-quote-original',
     'Do not quote the original email below your reply (markdown replies quote it by default)',
