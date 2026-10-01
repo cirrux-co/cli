@@ -1,6 +1,6 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, create, rename, trash and restore a document, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, comment on, create, rename, trash and restore a document, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
@@ -422,6 +422,11 @@ cirrux docs insert <uuid-or-link> "## Risks" --at end           # or --after/--b
 cirrux docs delete-text <uuid-or-link> "We may slip."           # text; a paragraph whose whole text goes is removed
 cirrux docs write <uuid-or-link> --file draft.md                # the whole document; only what differs changes
 cirrux docs edit <uuid-or-link> --operations ops.json           # several edits as one, from JSON (- for stdin)
+cirrux docs comments add <uuid-or-link> "Is this firm?" --on "Monday"   # a comment on quoted words (or the whole doc)
+cirrux docs comments reply <uuid-or-link> <comment-uuid> "Checked."    # reply
+cirrux docs comments edit <uuid-or-link> <comment-uuid> "New words"    # your latest message there (--message to pick)
+cirrux docs comments resolve|reopen <uuid-or-link> <comment-uuid>
+cirrux docs comments delete <uuid-or-link> <comment-uuid>             # with replies and marks (--message: one reply)
 cirrux docs create --title "Launch plan"           # an empty document; prints its uuid and link
 cirrux docs rename <uuid-or-link> "Launch plan v2" # "" makes it untitled
 cirrux docs trash <uuid-or-link>                   # deleted for good after 30 days
@@ -450,8 +455,13 @@ With `--json` you get `revision`, `markdown` and `threads` (each with `uuid`, `k
 - **Edits are plain edits, made as the user.** They are not suggestions and leave comments alone. Don't edit inside `{++…++}` or `{--…--}`: those are people's suggestions, to accept or reject in the editor.
 - People with the document open see the edit at once.
 
+**Comment with `docs comments`** (the commenter role is enough). Prefer a comment over an edit when the user asked you to review, question or flag something rather than change it.
+- `comments add --on <quote>` marks the comment on those words, matched like an edit's quote (`--occurrence`, `--before`, `--after`); without `--on` it is on the whole document. The body is markdown.
+- Comment UUIDs are in `docs read --comments` (and `--json`, which also has each message's UUID). Every command prints the comment after it.
+- You can only edit or delete your own words; deleting someone else's comment needs the manager or owner role. A suggestion (`[s1]`) is not resolved: it is accepted or rejected in the editor.
+
 **What you may do depends on your role on the document**, which `docs list` and `docs get` show:
-- a viewer and a commenter can only read it;
+- a viewer can only read it, and a commenter can also comment;
 - an editor can also edit and rename it;
 - trashing and restoring need the owner or a manager.
 
@@ -667,4 +677,4 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content. Snoozing, contact writes, and commenting on or suggesting in a document are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, and `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments. Snoozing, contact writes, and suggesting in a document are not yet exposed — say so rather than fabricating commands.

@@ -260,15 +260,18 @@ function formatMessage(message: DocumentContentMessage): string {
   return lines.join('\n')
 }
 
+/** One thread: what it is on, its uuid, whether it is closed, and its messages. */
+export function formatDocumentThread(thread: DocumentContentThread): string {
+  const closed = thread.status === 'open' ? '' : `, ${thread.status}`
+  return [`${threadHeading(thread)} (${thread.uuid}${closed})`, ...thread.messages.map(formatMessage)].join('\n')
+}
+
 /** The open threads, after the document, for `cirrux docs read --comments`. */
 export function formatDocumentThreads(threads: DocumentContentThread[]): string {
   if (threads.length === 0) return '--- No open comments or suggestions ---'
 
   const header = `--- ${threads.length} open ${threads.length === 1 ? 'thread' : 'threads'} ---`
-  const blocks = threads.map((thread) =>
-    [`${threadHeading(thread)} (${thread.uuid})`, ...thread.messages.map(formatMessage)].join('\n'),
-  )
-  return [header, ...blocks].join('\n\n')
+  return [header, ...threads.map(formatDocumentThread)].join('\n\n')
 }
 
 /** The document as markdown, and its open threads after it when asked for. */

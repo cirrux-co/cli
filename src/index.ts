@@ -76,7 +76,15 @@ import { contactsAddressbooksCommand } from './commands/contacts/addressbooks.js
 import { contactsListCommand } from './commands/contacts/list.js'
 import { contactsGetCommand } from './commands/contacts/get.js'
 import { contactsSearchCommand } from './commands/contacts/search.js'
+import {
+  docsCommentsAddCommand,
+  docsCommentsDeleteCommand,
+  docsCommentsEditCommand,
+  docsCommentsReplyCommand,
+  docsCommentsStatusCommand,
+} from './commands/docs/comments.js'
 import { docsCreateCommand } from './commands/docs/create.js'
+import type { OutputOptions } from './output.js'
 import {
   docsDeleteTextCommand,
   docsEditCommand,
@@ -702,7 +710,7 @@ contacts
 
 const docs = program
   .command('docs')
-  .description('Find, read, edit, create, rename and trash Cirrux Docs documents')
+  .description('Find, read, edit, comment on, create, rename and trash Cirrux Docs documents')
 
 docs
   .command('list')
@@ -860,6 +868,91 @@ docs
       `  $ echo '[{"type":"replace","find":"Monday","with":"Friday"}]' | cirrux docs edit <uuid> --operations -`,
   )
   .action(docsEditCommand)
+
+const docsComments = docs
+  .command('comments')
+  .description("Comment on a document: add, reply, edit, resolve, reopen and delete (commenter role)")
+  .addHelpText(
+    'after',
+    "\nList the open comments with 'cirrux docs read <document> --comments'; add --json for message UUIDs.",
+  )
+
+docsComments
+  .command('add')
+  .description('Comment on quoted text, or on the whole document')
+  .argument('<document>', 'Document UUID or link')
+  .argument('[body]', 'The comment, as markdown (or use --file)')
+  .option('--on <quote>', 'The text the comment is on, quoted from the document (without it: the whole document)')
+  .option('--occurrence <n>', 'Which match of --on: a number, first or last')
+  .option('--before <text>', 'Only the match of --on with this text right before it')
+  .option('--after <text>', 'Only the match of --on with this text right after it')
+  .option('--file <path>', 'Read the comment from a file')
+  .option('--json', 'Output the comment as JSON')
+  .option('--quiet', 'Output only the comment UUID')
+  .addHelpText(
+    'after',
+    '\nThe comment is marked on the quoted words, so people see it beside them in Docs.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux docs comments add <uuid> "Is Monday firm?" --on "Monday"\n' +
+      '  $ cirrux docs comments add <uuid> "Reads well overall."',
+  )
+  .action(docsCommentsAddCommand)
+
+docsComments
+  .command('reply')
+  .description('Reply to a comment')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<comment>', 'Comment UUID')
+  .argument('[body]', 'The reply, as markdown (or use --file)')
+  .option('--file <path>', 'Read the reply from a file')
+  .option('--json', 'Output the comment as JSON')
+  .option('--quiet', 'Output only the comment UUID')
+  .action(docsCommentsReplyCommand)
+
+docsComments
+  .command('edit')
+  .description('Change the words of one of your messages in a comment')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<comment>', 'Comment UUID')
+  .argument('[body]', 'The new words, as markdown (or use --file)')
+  .option('--message <uuid>', 'Which message (default: your latest one in the comment)')
+  .option('--file <path>', 'Read the new words from a file')
+  .option('--json', 'Output the comment as JSON')
+  .option('--quiet', 'Output only the comment UUID')
+  .action(docsCommentsEditCommand)
+
+docsComments
+  .command('resolve')
+  .description('Resolve a comment')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<comment>', 'Comment UUID')
+  .option('--json', 'Output the comment as JSON')
+  .option('--quiet', 'Output only the comment UUID')
+  .action((document: string, comment: string, options: OutputOptions) =>
+    docsCommentsStatusCommand(document, comment, 'resolved', options),
+  )
+
+docsComments
+  .command('reopen')
+  .description('Reopen a resolved comment')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<comment>', 'Comment UUID')
+  .option('--json', 'Output the comment as JSON')
+  .option('--quiet', 'Output only the comment UUID')
+  .action((document: string, comment: string, options: OutputOptions) =>
+    docsCommentsStatusCommand(document, comment, 'open', options),
+  )
+
+docsComments
+  .command('delete')
+  .description('Delete a comment with its replies and marks, or one reply with --message')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<comment>', 'Comment UUID')
+  .option('--message <uuid>', 'Delete only this reply')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted UUID')
+  .addHelpText('after', "\nYour own comments and replies, or anyone's if you manage or own the document.")
+  .action(docsCommentsDeleteCommand)
 
 docs
   .command('create')

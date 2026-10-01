@@ -169,6 +169,7 @@ cirrux docs get https://docs.cirrux.co/d/<uuid>
 cirrux docs read https://docs.cirrux.co/d/<uuid> --comments
 cirrux docs replace <document-uuid> "Monday" "Friday"
 cirrux docs insert <document-uuid> "## Risks" --at end
+cirrux docs comments add <document-uuid> "Is this firm?" --on "Monday"
 cirrux docs create --title "Launch plan"
 cirrux docs rename <document-uuid> "Launch plan v2"
 cirrux docs trash <document-uuid>
@@ -223,6 +224,8 @@ cirrux docs restore <document-uuid>
 | `cirrux docs delete-text <document> <find>`                           | Delete quoted text, across paragraphs if it spans them                                               |
 | `cirrux docs write <document>`                                        | Replace the whole document with markdown (`--file`, or stdin)                                        |
 | `cirrux docs edit <document> --operations <file>`                     | Several edits as one revision, from a JSON list of operations                                        |
+| `cirrux docs comments add <document> [body]`                          | Comment on quoted text (`--on`) or the whole document (commenter role)                               |
+| `cirrux docs comments reply\|edit\|resolve\|reopen\|delete ...`        | Reply to, edit your words in, resolve, reopen or delete a comment                                    |
 | `cirrux docs create`                                                  | Create an empty document (`--title`; needs the `docs.write` scope)                                   |
 | `cirrux docs rename <document> <title>`                               | Rename a document (editor role)                                                                      |
 | `cirrux docs trash <document>` / `cirrux docs restore <document>`     | Move a document to Trash, or take it out (owner or manager role)                                     |
