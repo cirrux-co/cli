@@ -78,6 +78,7 @@ cirrux thread get <thread-uuid>
 # Search threads or individual emails across your mailboxes
 cirrux thread search "from:alice is:unread"
 cirrux email search "has:attachment after:2026-01-01" --limit 50
+cirrux thread search "invoice" --label Receipts
 
 # Read one email's HTML body or full MIME
 cirrux email content <email-uuid> body
@@ -161,6 +162,17 @@ cirrux contacts list <addressbook-uuid>
 cirrux contacts search "acme"
 cirrux contacts search "jane" --addressbook-uuid <addressbook-uuid>
 cirrux contacts get <contact-uuid>
+
+# Docs (every document argument also takes a docs.cirrux.co link)
+cirrux docs list --query "roadmap"
+cirrux docs get https://docs.cirrux.co/d/<uuid>
+cirrux docs read https://docs.cirrux.co/d/<uuid> --comments
+cirrux docs replace <document-uuid> "Monday" "Friday"
+cirrux docs insert <document-uuid> "## Risks" --at end
+cirrux docs create --title "Launch plan"
+cirrux docs rename <document-uuid> "Launch plan v2"
+cirrux docs trash <document-uuid>
+cirrux docs restore <document-uuid>
 ```
 
 ### Commands
@@ -173,7 +185,7 @@ cirrux contacts get <contact-uuid>
 | `cirrux mailbox get <mailbox-uuid>`                                   | Mailbox metadata                                                                                     |
 | `cirrux thread list <mailbox-uuid>`                                   | List threads in a mailbox (`--label`, `--limit`, `--cursor`)                                         |
 | `cirrux thread get <thread-uuid>`                                     | Thread with all non-deleted emails                                                                   |
-| `cirrux thread search <query>`                                        | Search threads across your mailboxes (`--mailbox-uuid`, `--limit`, `--cursor`)                       |
+| `cirrux thread search <query>`                                        | Search threads across your mailboxes (`--mailbox-uuid`, `--label`, `--limit`, `--cursor`)            |
 | `cirrux email get <email-uuid>`                                       | Email metadata                                                                                       |
 | `cirrux email content <email-uuid> body\|raw`                         | Rendered HTML body or full MIME                                                                      |
 | `cirrux email search <query>`                                         | Search individual emails across your mailboxes                                                       |
@@ -203,10 +215,21 @@ cirrux contacts get <contact-uuid>
 | `cirrux contacts list <addressbook-uuid>`                             | List the contacts in one addressbook (`--limit`, `--cursor`)                                         |
 | `cirrux contacts search <query>`                                      | Substring search over contact names, company and email addresses (`--addressbook-uuid`)              |
 | `cirrux contacts get <contact-uuid>`                                  | One contact with its email addresses and phone numbers                                               |
+| `cirrux docs list`                                                    | Your documents and the ones shared with you, newest first (`--query`, `--trashed`, `--limit`, `--cursor`) |
+| `cirrux docs get <document>`                                          | A document's title, owner, your role and link. Takes a UUID or a docs.cirrux.co link                 |
+| `cirrux docs read <document>`                                         | The document as markdown, suggestions marked inline (`--comments` adds the open threads)             |
+| `cirrux docs replace <document> <find> <with>`                        | Replace quoted text inside one block (`--occurrence`; editor role)                                   |
+| `cirrux docs insert <document> [markdown]`                            | Insert markdown `--after`/`--before` a quote or `--at start\|end` (`--file`, or stdin)               |
+| `cirrux docs delete-text <document> <find>`                           | Delete quoted text, across paragraphs if it spans them                                               |
+| `cirrux docs write <document>`                                        | Replace the whole document with markdown (`--file`, or stdin)                                        |
+| `cirrux docs edit <document> --operations <file>`                     | Several edits as one revision, from a JSON list of operations                                        |
+| `cirrux docs create`                                                  | Create an empty document (`--title`; needs the `docs.write` scope)                                   |
+| `cirrux docs rename <document> <title>`                               | Rename a document (editor role)                                                                      |
+| `cirrux docs trash <document>` / `cirrux docs restore <document>`     | Move a document to Trash, or take it out (owner or manager role)                                     |
 | `cirrux skill install` / `uninstall` / `print`                        | Connect coding agents to the bundled agent skill, remove it, or preview it                           |
 | `cirrux doctor`                                                       | Check the install, sign-in and each detected coding agent                                            |
 
-Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `in:inbox`/`in:sent`/`in:drafts`/`in:archive`/`in:trash`/`in:spam`/`in:snoozed`/`in:starred`, `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.
+Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `in:inbox`/`in:sent`/`in:drafts`/`in:archive`/`in:trash`/`in:spam`/`in:snoozed`/`in:starred`, `label:<name>` (or `label:"Label name"`), `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.
 
 Every data-producing command supports three output modes:
 

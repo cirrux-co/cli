@@ -1,6 +1,6 @@
 import { authedRequest } from '../../api.js'
 import { handleApiError } from '../../api-errors.js'
-import { SEARCH_ERROR_RULES } from '../search-shared.js'
+import { buildMailSearchParams, SEARCH_ERROR_RULES, type MailSearchOptions } from '../search-shared.js'
 import { output, type OutputOptions } from '../../output.js'
 import { requireCredentials } from '../../session.js'
 import { formatThreadList } from './list.js'
@@ -49,17 +49,12 @@ interface ThreadSearchResponse {
 
 export async function threadSearchCommand(
   query: string,
-  options: OutputOptions & { mailboxUuid?: string; limit?: string; cursor?: string },
+  options: OutputOptions & MailSearchOptions,
 ): Promise<void> {
   requireCredentials(options)
 
   try {
-    const params = new URLSearchParams()
-    params.set('q', query)
-    if (options.mailboxUuid) params.set('mailbox_uuid', options.mailboxUuid)
-    if (options.limit) params.set('limit', options.limit)
-    if (options.cursor) params.set('cursor', options.cursor)
-
+    const params = buildMailSearchParams(query, options)
     const path = `public_api/v1/search/threads?${params.toString()}`
 
     const response = await authedRequest<ThreadSearchResponse>(path)
@@ -81,7 +76,6 @@ export async function threadSearchCommand(
     handleApiError(error, options, {
       action: 'Search threads',
       scope: 'email',
-      notFound: 'Mailbox not found.',
       rules: SEARCH_ERROR_RULES,
     })
   }

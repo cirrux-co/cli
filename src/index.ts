@@ -76,6 +76,20 @@ import { contactsAddressbooksCommand } from './commands/contacts/addressbooks.js
 import { contactsListCommand } from './commands/contacts/list.js'
 import { contactsGetCommand } from './commands/contacts/get.js'
 import { contactsSearchCommand } from './commands/contacts/search.js'
+import { docsCreateCommand } from './commands/docs/create.js'
+import {
+  docsDeleteTextCommand,
+  docsEditCommand,
+  docsInsertCommand,
+  docsReplaceCommand,
+  docsWriteCommand,
+} from './commands/docs/edit.js'
+import { docsGetCommand } from './commands/docs/get.js'
+import { docsListCommand } from './commands/docs/list.js'
+import { docsReadCommand } from './commands/docs/read.js'
+import { docsRenameCommand } from './commands/docs/rename.js'
+import { docsRestoreCommand } from './commands/docs/restore.js'
+import { docsTrashCommand } from './commands/docs/trash.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { feedbackCommand } from './commands/feedback.js'
 import { skillInstallCommand, skillPrintCommand, skillUninstallCommand } from './commands/skill.js'
@@ -302,10 +316,18 @@ thread
   .description('Search threads across the user\'s mailboxes')
   .argument('<query>', 'Search query (e.g. "from:alice is:unread subject:\\"quarterly review\\"")')
   .option('--mailbox-uuid <uuid>', 'Restrict results to a single mailbox')
+  .option('--label <uuid-or-name>', 'Only threads with this label: a label UUID, or a name matched in every mailbox')
   .option('--limit <n>', 'Number of threads to return (1-100, default 25)')
   .option('--cursor <cursor>', 'Pagination cursor from a previous response')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only thread UUIDs, one per line (for piping)')
+  .addHelpText(
+    'after',
+    '\nExamples:\n' +
+      '  $ cirrux thread search "invoice" --label Receipts\n' +
+      '  $ cirrux thread search "invoice" --label <label-uuid>\n' +
+      '  $ cirrux thread search \'invoice label:"Project X" -label:done\'',
+  )
   .action(threadSearchCommand)
 
 const email = program
@@ -334,6 +356,7 @@ email
   .description('Search individual emails across the user\'s mailboxes')
   .argument('<query>', 'Search query (e.g. "has:attachment after:2026-01-01")')
   .option('--mailbox-uuid <uuid>', 'Restrict results to a single mailbox')
+  .option('--label <uuid-or-name>', 'Only emails with this label: a label UUID, or a name matched in every mailbox')
   .option('--limit <n>', 'Number of emails to return (1-100, default 25)')
   .option('--cursor <cursor>', 'Pagination cursor from a previous response')
   .option('--json', 'Output as JSON')
@@ -438,7 +461,7 @@ emailLabels
   .command('add')
   .description('Add a label to an email (idempotent)')
   .argument('<uuid>', 'Email UUID')
-  .option('--type <type>', 'System label type (inbox, archive, trash, junk)')
+  .option('--type <type>', 'System label type (inbox, archive, trash, junk, auto_archive)')
   .option('--label-uuid <uuid>', 'Custom label UUID (from `cirrux mailbox labels list`)')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the email UUID (for piping)')
@@ -448,7 +471,7 @@ emailLabels
   .command('remove')
   .description('Remove a label from an email (idempotent)')
   .argument('<uuid>', 'Email UUID')
-  .option('--type <type>', 'System label type (inbox, archive, trash, junk)')
+  .option('--type <type>', 'System label type (inbox, archive, trash, junk, auto_archive)')
   .option('--label-uuid <uuid>', 'Custom label UUID')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the email UUID (for piping)')
@@ -676,6 +699,208 @@ contacts
   .option('--quiet', 'Output only the contact UUID (for piping)')
   .addHelpText('after', '\nExample:\n  $ cirrux contacts get <contact-uuid> --json')
   .action(contactsGetCommand)
+
+const docs = program
+  .command('docs')
+  .description('Find, read, edit, create, rename and trash Cirrux Docs documents')
+
+docs
+  .command('list')
+  .description('List your documents and the ones shared with you, newest first')
+  .option('--query <q>', 'Only documents whose title contains this')
+  .option('--trashed', 'List the documents in Trash instead')
+  .option('--limit <n>', 'Documents per page, 1-100 (default 25)')
+  .option('--cursor <cursor>', 'Pagination cursor from a previous response')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only document UUIDs, one per line (for piping)')
+  .addHelpText(
+    'after',
+    '\nExamples:\n' +
+      '  $ cirrux docs list\n' +
+      '  $ cirrux docs list --query "roadmap" --json\n' +
+      '  $ cirrux docs list --trashed',
+  )
+  .action(docsListCommand)
+
+docs
+  .command('get')
+  .description("Show a document's title, owner, your role and its link")
+  .argument('<document>', 'Document UUID, or a link like https://docs.cirrux.co/d/<uuid>')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the document UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nExamples:\n' +
+      '  $ cirrux docs get https://docs.cirrux.co/d/<uuid>\n' +
+      '  $ cirrux docs get <uuid> --json',
+  )
+  .action(docsGetCommand)
+
+docs
+  .command('read')
+  .description('Print a document as markdown, with suggestions marked inline')
+  .argument('<document>', 'Document UUID, or a link like https://docs.cirrux.co/d/<uuid>')
+  .option('--comments', 'Add the open comments and suggestions after the document')
+  .option('--json', 'Output as JSON, with revision and threads')
+  .option('--quiet', 'Output only the revision the document was read at')
+  .addHelpText(
+    'after',
+    '\nSuggestions are CriticMarkup followed by their reference: {++added++}{>>s1<<},\n' +
+      '{--removed--}{>>s1<<}, {~~old~>new~~}{>>s1<<}, {==restyled==}{>>s1<<}, and\n' +
+      '{++¶++}/{--¶--}/{==¶==} at the start of a block for a suggested break or block type.\n' +
+      'Attachments link to attachment:<uuid>.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux docs read https://docs.cirrux.co/d/<uuid>\n' +
+      '  $ cirrux docs read <uuid> --comments\n' +
+      '  $ cirrux docs read <uuid> --json',
+  )
+  .action(docsReadCommand)
+
+const EDIT_HELP =
+  '\nQuote text exactly as `cirrux docs read` prints it (or as it reads, without markup). A quote that is\n' +
+  'not there, or is there more than once without --occurrence, --before or --after, changes nothing.\n' +
+  'Prints the document after the edit. Needs the editor role.'
+
+docs
+  .command('replace')
+  .description('Replace text inside one paragraph, heading or list item')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<find>', 'The text to replace, quoted from the document')
+  .argument('<with>', 'What replaces it, as inline markdown ("" removes it)')
+  .option('--occurrence <n>', 'Which match, when the text is there more than once: a number, first or last')
+  .option('--before <text>', 'Only the match with this text right before it')
+  .option('--after <text>', 'Only the match with this text right after it')
+  .option('--base-revision <n>', 'Refuse the edit if the document has changed since this revision')
+  .option('--json', 'Output the document after the edit as JSON')
+  .option('--quiet', 'Output only the new revision')
+  .addHelpText(
+    'after',
+    `${EDIT_HELP}\n\nA replacement keeps the formatting of the text it replaces, plus any it writes itself:\n` +
+      'replacing Monday in **Monday** with Friday stays bold.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux docs replace <uuid> "Monday" "Friday"\n' +
+      '  $ cirrux docs replace <uuid> "the plan" "the **new** plan" --occurrence last\n' +
+      '  $ cirrux docs replace <uuid> "ship" "sail" --before "They"',
+  )
+  .action(docsReplaceCommand)
+
+docs
+  .command('insert')
+  .description('Insert markdown before or after a block, or at the start or end')
+  .argument('<document>', 'Document UUID or link')
+  .argument('[markdown]', 'What to insert (or use --file, or stdin)')
+  .option('--after <anchor>', 'After the block this text is in, or heading:Title, section:Title, end')
+  .option('--before <anchor>', 'Before the block this text is in, or heading:Title, section:Title, start')
+  .option('--at <place>', 'start or end of the document')
+  .option('--file <path>', 'Read the markdown from a file')
+  .option('--occurrence <n>', 'Which match of --after/--before: a number, first or last')
+  .option('--base-revision <n>', 'Refuse the edit if the document has changed since this revision')
+  .option('--json', 'Output the document after the edit as JSON')
+  .option('--quiet', 'Output only the new revision')
+  .addHelpText(
+    'after',
+    `${EDIT_HELP}\n\nA quote anchors to the top-level block it is in, and a list inserted next to a list item joins\n` +
+      'that list. heading:Title is the heading itself; section:Title runs to the next heading as high or higher.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux docs insert <uuid> "## Risks" --at end\n' +
+      '  $ cirrux docs insert <uuid> "A new risk." --after "section:Risks"\n' +
+      '  $ cirrux docs insert <uuid> "- Check the numbers" --after "Write the post"\n' +
+      '  $ cat notes.md | cirrux docs insert <uuid> --after "## Notes"',
+  )
+  .action(docsInsertCommand)
+
+docs
+  .command('delete-text')
+  .description('Delete text; a paragraph whose whole text goes is removed')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<find>', 'The text to delete, quoted from the document (may span paragraphs)')
+  .option('--occurrence <n>', 'Which match, when the text is there more than once: a number, first or last')
+  .option('--before <text>', 'Only the match with this text right before it')
+  .option('--after <text>', 'Only the match with this text right after it')
+  .option('--base-revision <n>', 'Refuse the edit if the document has changed since this revision')
+  .option('--json', 'Output the document after the edit as JSON')
+  .option('--quiet', 'Output only the new revision')
+  .addHelpText('after', `${EDIT_HELP}\n\nExample:\n  $ cirrux docs delete-text <uuid> "We may slip."`)
+  .action(docsDeleteTextCommand)
+
+docs
+  .command('write')
+  .description('Replace the whole document with markdown')
+  .argument('<document>', 'Document UUID or link')
+  .option('--file <path>', 'Read the markdown from a file (stdin otherwise)')
+  .option('--base-revision <n>', 'Refuse the edit if the document has changed since this revision')
+  .option('--json', 'Output the document after the edit as JSON')
+  .option('--quiet', 'Output only the new revision')
+  .addHelpText(
+    'after',
+    '\nOnly the blocks that differ change; the rest keep their place, so people working in the document\n' +
+      'lose nothing that was not rewritten. For small changes, replace, insert and delete-text say more\n' +
+      'plainly what changed.\n' +
+      '\nExample:\n  $ cirrux docs write $(cirrux docs create --title "Retro" --quiet) --file retro.md',
+  )
+  .action(docsWriteCommand)
+
+docs
+  .command('edit')
+  .description('Make several edits at once, as a JSON list of operations')
+  .argument('<document>', 'Document UUID or link')
+  .requiredOption('--operations <file>', 'JSON file with the operations, or - for stdin')
+  .option('--base-revision <n>', 'Refuse the edit if the document has changed since this revision')
+  .option('--json', 'Output the document after the edit as JSON')
+  .option('--quiet', 'Output only the new revision')
+  .addHelpText(
+    'after',
+    '\nThe operations apply in order, each to the document the ones before it left, and land as one\n' +
+      'revision, or nothing changes:\n' +
+      '  {"type": "replace", "find": "...", "with": "...", "occurrence": 1 | "first" | "last", "before"?, "after"?}\n' +
+      '  {"type": "insert", "markdown": "...", "after" | "before": "<quote>" | "heading:Title" | "section:Title" | "start" | "end"}\n' +
+      '  {"type": "delete", "find": "...", "occurrence"?, "before"?, "after"?}\n' +
+      '  {"type": "set_document", "markdown": "..."}\n' +
+      '\nExample:\n' +
+      `  $ echo '[{"type":"replace","find":"Monday","with":"Friday"}]' | cirrux docs edit <uuid> --operations -`,
+  )
+  .action(docsEditCommand)
+
+docs
+  .command('create')
+  .description('Create an empty document')
+  .option('--title <title>', 'Title (omit for an untitled document)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new document UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux docs create --title "Launch plan"')
+  .action(docsCreateCommand)
+
+docs
+  .command('rename')
+  .description('Rename a document (needs the editor role)')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<title>', 'New title; an empty string makes it untitled')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the document UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux docs rename <uuid> "Launch plan v2"')
+  .action(docsRenameCommand)
+
+docs
+  .command('trash')
+  .description('Move a document to Trash (needs the owner or manager role)')
+  .argument('<document>', 'Document UUID or link')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the document UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nA trashed document is deleted for good after 30 days. Undo with `cirrux docs restore`.\n' +
+      '\nExample:\n  $ cirrux docs trash <uuid>',
+  )
+  .action(docsTrashCommand)
+
+docs
+  .command('restore')
+  .description('Take a document out of Trash (needs the owner or manager role)')
+  .argument('<document>', 'Document UUID or link')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the document UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux docs restore $(cirrux docs list --trashed --quiet | head -1)')
+  .action(docsRestoreCommand)
 
 const drive = program
   .command('drive')

@@ -26,7 +26,8 @@ export type ApiErrorRule = ApiErrorMatcher & {
   errorType?: string
   /** Rendered as "<action> failed: <reason>". Defaults to the API's description. */
   reason?: string
-  hint?: string
+  /** A function when the hint depends on what the API answered, such as the matches it lists. */
+  hint?: string | ((error: ApiError) => string | undefined)
 }
 
 export interface ApiErrorContext {
@@ -87,11 +88,12 @@ export function classifyApiError(error: unknown, context: ApiErrorContext): Erro
 
   for (const rule of context.rules ?? []) {
     if (!matches(rule, error)) continue
+    const hint = typeof rule.hint === 'function' ? rule.hint(error) : rule.hint
     return {
       code: rule.exitCode,
       message: failed(rule.reason ?? error.description ?? 'the request was rejected.'),
       errorType: rule.errorType ?? error.errorCode ?? 'api_error',
-      ...(rule.hint ? { hint: rule.hint } : {}),
+      ...(hint ? { hint } : {}),
     }
   }
 
