@@ -115,6 +115,50 @@ export const DOCS_ERROR_RULES: ApiErrorRule[] = [
     hint: "Change several paragraphs with 'cirrux docs delete-text' and 'cirrux docs insert'.",
   },
   {
+    status: 422,
+    errorCode: 'not_suggestible',
+    exitCode: ExitCode.USAGE_ERROR,
+    hint: "Suggest it as replace, insert and delete-text changes, or make it as an edit without --suggest.",
+  },
+  {
+    status: 422,
+    errorCode: 'nothing_to_suggest',
+    exitCode: ExitCode.USAGE_ERROR,
+    hint: "That text is already suggested for removal ({--...--} in 'cirrux docs read').",
+  },
+  {
+    status: 422,
+    errorCode: 'not_a_suggestion',
+    exitCode: ExitCode.USAGE_ERROR,
+    hint: "That is a comment. Resolve it with 'cirrux docs comments resolve', or delete it with 'cirrux docs comments delete'.",
+  },
+  {
+    status: 422,
+    errorCode: 'suggestion_closed',
+    exitCode: ExitCode.USAGE_ERROR,
+    hint: "Only open suggestions can be decided; 'cirrux docs read --comments' lists them.",
+  },
+  {
+    // The API's own refusal, or the ingress's, which answers before the API sees the request.
+    status: 413,
+    exitCode: ExitCode.USAGE_ERROR,
+    errorType: 'file_too_large',
+    reason: 'the file is too large.',
+  },
+  {
+    // Attachments count towards the workspace's storage, as Drive files do.
+    status: 422,
+    errorCode: 'storage_limit_exceeded',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'the workspace storage limit has been reached.',
+  },
+  {
+    status: 409,
+    errorCode: 'not_uploaded',
+    exitCode: ExitCode.CONFLICT,
+    hint: 'Its file is still on its way, or never arrived; whoever attached it can add it again.',
+  },
+  {
     status: 409,
     errorCode: 'conflict',
     exitCode: ExitCode.CONFLICT,

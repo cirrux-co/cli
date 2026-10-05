@@ -151,17 +151,20 @@ function coAuthorHeader(): Record<string, string> {
   return coAuthor ? { 'X-Cirrux-Co-Author': coAuthor } : {}
 }
 
+interface RequestOptions {
+  method?: string
+  body?: Record<string, unknown>
+  /** A file's raw bytes as the body, for an endpoint that takes one instead of JSON. */
+  bytes?: Uint8Array
+}
+
 export async function apiRequest<T>(
   path: string,
-  options: {
-    method?: string
-    body?: Record<string, unknown>
-    token?: string
-  } = {},
+  options: RequestOptions & { token?: string } = {},
 ): Promise<T> {
   const url = new URL(path, apiUrl())
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    'Content-Type': options.bytes ? 'application/octet-stream' : 'application/json',
     ...coAuthorHeader(),
   }
 
@@ -169,11 +172,15 @@ export async function apiRequest<T>(
     headers['Authorization'] = `Bearer ${options.token}`
   }
 
+  // Copied into a plain ArrayBuffer: a Node Buffer's backing store is typed ArrayBufferLike, which
+  // fetch's BodyInit rejects (see putToPresignedUrl).
+  const body = options.bytes ? new Uint8Array(options.bytes).buffer : options.body ? JSON.stringify(options.body) : undefined
+
   const response = await withRetry(async () => {
     const r = await fetch(url.toString(), {
-      method: options.method ?? (options.body ? 'POST' : 'GET'),
+      method: options.method ?? (body !== undefined ? 'POST' : 'GET'),
       headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      body,
     })
     if (!r.ok) throw await apiErrorFrom(r)
     return r
@@ -277,10 +284,7 @@ async function withAccessToken<T>(run: (token: string) => Promise<T>): Promise<T
   }
 }
 
-export async function authedRequest<T>(
-  path: string,
-  options: { method?: string; body?: Record<string, unknown> } = {},
-): Promise<T> {
+export async function authedRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   return withAccessToken((token) => apiRequest<T>(path, { ...options, token }))
 }
 

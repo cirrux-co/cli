@@ -6,6 +6,7 @@ import { output, outputError, type OutputOptions } from '../../output.js'
 import {
   type DocumentContent,
   formatDocumentContent,
+  formatDocumentThread,
   handleDocsError,
   requireCredentials,
   resolveDocumentRef,
@@ -17,6 +18,15 @@ export type DocumentEditOperation = Record<string, unknown> & { type: string }
 interface EditOptions extends OutputOptions {
   baseRevision?: string
   occurrence?: string
+  /** Suggest the changes instead of making them: each operation becomes a suggestion of its own. */
+  suggest?: boolean
+  /** Why, for a suggestion: the first message on it. */
+  comment?: string
+}
+
+/** What POST /v1/documents/:uuid/suggestions answers: the document after it, and the new suggestions' uuids. */
+export interface SuggestedContent extends DocumentContent {
+  suggestions: string[]
 }
 
 interface TextEditOptions extends EditOptions {
@@ -74,10 +84,21 @@ export function parseOperations(json: string): DocumentEditOperation[] | string 
 
   const list = Array.isArray(parsed) ? parsed : (parsed as { operations?: unknown } | null)?.operations
   if (!Array.isArray(list) || list.length === 0) return 'Pass a JSON list of operations, or {"operations": [...]}.'
-  if (!list.every((item) => typeof item === 'object' && item !== null && typeof item.type === 'string')) {
-    return 'Every operation is an object with a type.'
-  }
+
+  const invalid = list.findIndex((item) => typeof item !== 'object' || item === null || typeof item.type !== 'string')
+  if (invalid !== -1) return untypedOperationMessage(list[invalid], invalid + 1)
   return list as DocumentEditOperation[]
+}
+
+const OPERATION_TYPES = ['replace', 'insert', 'delete', 'set_document']
+
+/** Why an operation has no type, naming the flat shape, and the fix when it was written keyed by its type. */
+function untypedOperationMessage(item: unknown, position: number): string {
+  const keys = typeof item === 'object' && item !== null && !Array.isArray(item) ? Object.keys(item) : []
+  if (keys.length === 1 && OPERATION_TYPES.includes(keys[0])) {
+    return `Operation ${position} is keyed by its type: write {"type": "${keys[0]}", ...} with the fields beside the type, not {"${keys[0]}": {...}}.`
+  }
+  return `Operation ${position} has no type: each is an object like {"type": "replace", "find": "...", "with": "..."}, with type one of ${OPERATION_TYPES.join(', ')}.`
 }
 
 function usage(message: string, options: OutputOptions, hint?: string): never {
@@ -101,9 +122,36 @@ async function readMarkdown(argument: string | undefined, file: string | undefin
   return Buffer.concat(chunks).toString('utf8')
 }
 
+/** The document after a suggestion, and each suggestion it made, as `docs read --comments` lists them. */
+export function formatSuggestedContent(content: SuggestedContent): string {
+  const made = content.suggestions.flatMap((uuid) => content.threads.filter((thread) => thread.uuid === uuid))
+  const header = `--- ${made.length} new ${made.length === 1 ? 'suggestion' : 'suggestions'} ---`
+  return [formatDocumentContent(content), header, ...made.map(formatDocumentThread)].join('\n\n')
+}
+
+/** POST the operations as one edit, or as suggestions, under a fresh batch id. */
+export async function postEdit(
+  uuid: string,
+  operations: DocumentEditOperation[],
+  options: { baseRevision?: number; suggest?: boolean } = {},
+): Promise<DocumentContent | SuggestedContent> {
+  return authedRequest<DocumentContent | SuggestedContent>(
+    `public_api/v1/documents/${uuid}/${options.suggest ? 'suggestions' : 'content'}`,
+    {
+      method: 'POST',
+      body: {
+        operations,
+        batch_id: randomUUID(),
+        ...(options.baseRevision !== undefined ? { base_revision: options.baseRevision } : {}),
+      },
+    },
+  )
+}
+
 /**
- * Send the operations as one edit and print the document after it. The batch id makes a retried
- * request the same edit, so the HTTP layer's retries can never apply it twice.
+ * Send the operations as one edit, or as suggestions with --suggest, and print the document after it.
+ * The batch id makes a retried request the same edit, so the HTTP layer's retries can never apply it
+ * twice.
  */
 async function submitEdit(
   ref: string,
@@ -116,26 +164,27 @@ async function submitEdit(
   const baseRevision = count(options.baseRevision, '--base-revision', options, 0)
 
   try {
-    const content = await authedRequest<DocumentContent>(`public_api/v1/documents/${uuid}/content`, {
-      method: 'POST',
-      body: {
-        operations,
-        batch_id: randomUUID(),
-        ...(baseRevision !== undefined ? { base_revision: baseRevision } : {}),
-      },
-    })
+    const content = await postEdit(uuid, operations, { baseRevision, suggest: options.suggest })
 
     output(content as unknown as Record<string, unknown>, {
       ...options,
-      text: () => formatDocumentContent(content),
+      text: () => ('suggestions' in content ? formatSuggestedContent(content) : formatDocumentContent(content)),
       quietValue: () => String(content.revision),
     })
   } catch (error) {
-    handleDocsError(error, options, { action, notFound: 'Document not found.' })
+    handleDocsError(error, options, { action: options.suggest ? `${action} (suggest)` : action, notFound: 'Document not found.' })
   }
 }
 
-function withOccurrence(operation: DocumentEditOperation, options: EditOptions): DocumentEditOperation {
+/** --comment says why a suggestion is made, so it goes with --suggest. */
+function withComment(operation: DocumentEditOperation, options: EditOptions): DocumentEditOperation {
+  if (options.comment === undefined) return operation
+  if (!options.suggest) usage('--comment goes with --suggest.', options, "Comment without suggesting with 'cirrux docs comments add'.")
+  if (options.comment.trim() === '') usage('The comment is empty.', options)
+  return { ...operation, comment: options.comment }
+}
+
+export function withOccurrence(operation: DocumentEditOperation, options: EditOptions): DocumentEditOperation {
   const occurrence = parseOccurrence(options.occurrence)
   if (occurrence === null) usage('--occurrence is a number from 1, first or last.', options)
   return occurrence === undefined ? operation : { ...operation, occurrence }
@@ -151,11 +200,12 @@ function withContext(operation: DocumentEditOperation, options: TextEditOptions)
 }
 
 export async function docsReplaceCommand(ref: string, find: string, replacement: string, options: TextEditOptions) {
-  await submitEdit(ref, [withContext({ type: 'replace', find, with: replacement }, options)], options, 'Replace text')
+  const operation = withComment(withContext({ type: 'replace', find, with: replacement }, options), options)
+  await submitEdit(ref, [operation], options, 'Replace text')
 }
 
 export async function docsDeleteTextCommand(ref: string, find: string, options: TextEditOptions) {
-  await submitEdit(ref, [withContext({ type: 'delete', find }, options)], options, 'Delete text')
+  await submitEdit(ref, [withComment(withContext({ type: 'delete', find }, options), options)], options, 'Delete text')
 }
 
 export async function docsInsertCommand(ref: string, markdown: string | undefined, options: InsertOptions) {
@@ -163,7 +213,7 @@ export async function docsInsertCommand(ref: string, markdown: string | undefine
   if (typeof place === 'string') usage(place, options)
 
   const operation = withOccurrence({ type: 'insert', markdown: await readMarkdown(markdown, options.file, options), ...place }, options)
-  await submitEdit(ref, [operation], options, 'Insert')
+  await submitEdit(ref, [withComment(operation, options)], options, 'Insert')
 }
 
 export async function docsWriteCommand(ref: string, options: EditOptions & { file?: string }) {

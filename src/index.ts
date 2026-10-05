@@ -83,7 +83,9 @@ import {
   docsCommentsReplyCommand,
   docsCommentsStatusCommand,
 } from './commands/docs/comments.js'
+import { docsAttachCommand } from './commands/docs/attach.js'
 import { docsCreateCommand } from './commands/docs/create.js'
+import { docsDownloadCommand } from './commands/docs/download.js'
 import type { OutputOptions } from './output.js'
 import {
   docsDeleteTextCommand,
@@ -92,6 +94,7 @@ import {
   docsReplaceCommand,
   docsWriteCommand,
 } from './commands/docs/edit.js'
+import { docsSuggestionsDecideCommand, docsSuggestionsWithdrawCommand } from './commands/docs/suggestions.js'
 import { docsGetCommand } from './commands/docs/get.js'
 import { docsListCommand } from './commands/docs/list.js'
 import { docsReadCommand } from './commands/docs/read.js'
@@ -710,7 +713,7 @@ contacts
 
 const docs = program
   .command('docs')
-  .description('Find, read, edit, comment on, create, rename and trash Cirrux Docs documents')
+  .description('Find, read, edit, attach and download files of, comment on, create, rename and trash Cirrux Docs documents')
 
 docs
   .command('list')
@@ -756,7 +759,7 @@ docs
     '\nSuggestions are CriticMarkup followed by their reference: {++added++}{>>s1<<},\n' +
       '{--removed--}{>>s1<<}, {~~old~>new~~}{>>s1<<}, {==restyled==}{>>s1<<}, and\n' +
       '{++¶++}/{--¶--}/{==¶==} at the start of a block for a suggested break or block type.\n' +
-      'Attachments link to attachment:<uuid>.\n' +
+      "Attachments link to attachment:<uuid>; download one with 'cirrux docs download'.\n" +
       '\nExamples:\n' +
       '  $ cirrux docs read https://docs.cirrux.co/d/<uuid>\n' +
       '  $ cirrux docs read <uuid> --comments\n' +
@@ -767,7 +770,23 @@ docs
 const EDIT_HELP =
   '\nQuote text exactly as `cirrux docs read` prints it (or as it reads, without markup). A quote that is\n' +
   'not there, or is there more than once without --occurrence, --before or --after, changes nothing.\n' +
-  'Prints the document after the edit. Needs the editor role.'
+  'Prints the document after the edit. Needs the editor role.\n' +
+  '\nWith --suggest the change is a suggestion instead, which people accept or reject in Docs: what it\n' +
+  'would take out stays, marked, and what it brings in is added, marked. The commenter role is enough.\n' +
+  'Say why with --comment; it is the first message on the suggestion.'
+
+const MARKDOWN_HELP =
+  '\nA document holds paragraphs, headings, bullet and numbered lists (nested), quotes, horizontal rules,\n' +
+  'bold, italic, <u>underline</u>, ~~strikethrough~~, `inline code`, links and line breaks (end the line\n' +
+  'with a backslash or two spaces), and its attachments: ![name](attachment:<uuid>) alone on a line.\n' +
+  'It has no tables, code blocks or task lists, and no images from elsewhere: a table stays as its text,\n' +
+  'pipes and all, in one paragraph; a code block becomes lines of inline code without its language; a\n' +
+  'task list becomes plain bullets without its checkboxes; an image by URL becomes a link to it. Write\n' +
+  'those another way: a table as a list, a code block as inline code per line, an image with\n' +
+  "'cirrux docs attach'."
+
+const SUGGEST_OPTION = 'Suggest the change instead of making it (commenter role is enough)'
+const COMMENT_OPTION = 'With --suggest: why, as markdown, the first message on the suggestion'
 
 docs
   .command('replace')
@@ -778,6 +797,8 @@ docs
   .option('--occurrence <n>', 'Which match, when the text is there more than once: a number, first or last')
   .option('--before <text>', 'Only the match with this text right before it')
   .option('--after <text>', 'Only the match with this text right after it')
+  .option('--suggest', SUGGEST_OPTION)
+  .option('--comment <markdown>', COMMENT_OPTION)
   .option('--base-revision <n>', 'Refuse the edit if the document has changed since this revision')
   .option('--json', 'Output the document after the edit as JSON')
   .option('--quiet', 'Output only the new revision')
@@ -788,7 +809,8 @@ docs
       '\nExamples:\n' +
       '  $ cirrux docs replace <uuid> "Monday" "Friday"\n' +
       '  $ cirrux docs replace <uuid> "the plan" "the **new** plan" --occurrence last\n' +
-      '  $ cirrux docs replace <uuid> "ship" "sail" --before "They"',
+      '  $ cirrux docs replace <uuid> "ship" "sail" --before "They"\n' +
+      '  $ cirrux docs replace <uuid> "Monday" "Friday" --suggest --comment "The invite says Friday."',
   )
   .action(docsReplaceCommand)
 
@@ -802,6 +824,8 @@ docs
   .option('--at <place>', 'start or end of the document')
   .option('--file <path>', 'Read the markdown from a file')
   .option('--occurrence <n>', 'Which match of --after/--before: a number, first or last')
+  .option('--suggest', SUGGEST_OPTION)
+  .option('--comment <markdown>', COMMENT_OPTION)
   .option('--base-revision <n>', 'Refuse the edit if the document has changed since this revision')
   .option('--json', 'Output the document after the edit as JSON')
   .option('--quiet', 'Output only the new revision')
@@ -809,6 +833,7 @@ docs
     'after',
     `${EDIT_HELP}\n\nA quote anchors to the top-level block it is in, and a list inserted next to a list item joins\n` +
       'that list. heading:Title is the heading itself; section:Title runs to the next heading as high or higher.\n' +
+      `${MARKDOWN_HELP}\n` +
       '\nExamples:\n' +
       '  $ cirrux docs insert <uuid> "## Risks" --at end\n' +
       '  $ cirrux docs insert <uuid> "A new risk." --after "section:Risks"\n' +
@@ -825,10 +850,19 @@ docs
   .option('--occurrence <n>', 'Which match, when the text is there more than once: a number, first or last')
   .option('--before <text>', 'Only the match with this text right before it')
   .option('--after <text>', 'Only the match with this text right after it')
+  .option('--suggest', SUGGEST_OPTION)
+  .option('--comment <markdown>', COMMENT_OPTION)
   .option('--base-revision <n>', 'Refuse the edit if the document has changed since this revision')
   .option('--json', 'Output the document after the edit as JSON')
   .option('--quiet', 'Output only the new revision')
-  .addHelpText('after', `${EDIT_HELP}\n\nExample:\n  $ cirrux docs delete-text <uuid> "We may slip."`)
+  .addHelpText(
+    'after',
+    `${EDIT_HELP}\n\nWith --suggest, a paragraph whose whole text is suggested for removal goes with its break once\n` +
+      'the suggestion is accepted.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux docs delete-text <uuid> "We may slip."\n' +
+      '  $ cirrux docs delete-text <uuid> "We may slip." --suggest --comment "We will not."',
+  )
   .action(docsDeleteTextCommand)
 
 docs
@@ -844,6 +878,7 @@ docs
     '\nOnly the blocks that differ change; the rest keep their place, so people working in the document\n' +
       'lose nothing that was not rewritten. For small changes, replace, insert and delete-text say more\n' +
       'plainly what changed.\n' +
+      `${MARKDOWN_HELP}\n` +
       '\nExample:\n  $ cirrux docs write $(cirrux docs create --title "Retro" --quiet) --file retro.md',
   )
   .action(docsWriteCommand)
@@ -853,21 +888,71 @@ docs
   .description('Make several edits at once, as a JSON list of operations')
   .argument('<document>', 'Document UUID or link')
   .requiredOption('--operations <file>', 'JSON file with the operations, or - for stdin')
+  .option('--suggest', 'Suggest the operations instead of making them, each a suggestion of its own')
   .option('--base-revision <n>', 'Refuse the edit if the document has changed since this revision')
   .option('--json', 'Output the document after the edit as JSON')
   .option('--quiet', 'Output only the new revision')
   .addHelpText(
     'after',
     '\nThe operations apply in order, each to the document the ones before it left, and land as one\n' +
-      'revision, or nothing changes:\n' +
+      'revision, or nothing changes. Each is a flat object with a "type" field:\n' +
       '  {"type": "replace", "find": "...", "with": "...", "occurrence": 1 | "first" | "last", "before"?, "after"?}\n' +
       '  {"type": "insert", "markdown": "...", "after" | "before": "<quote>" | "heading:Title" | "section:Title" | "start" | "end"}\n' +
       '  {"type": "delete", "find": "...", "occurrence"?, "before"?, "after"?}\n' +
       '  {"type": "set_document", "markdown": "..."}\n' +
+      '\nWith --suggest, each operation becomes a suggestion of its own, and may carry a "comment" (markdown)\n' +
+      'saying why. set_document cannot be suggested.\n' +
+      `${MARKDOWN_HELP}\n` +
       '\nExample:\n' +
       `  $ echo '[{"type":"replace","find":"Monday","with":"Friday"}]' | cirrux docs edit <uuid> --operations -`,
   )
   .action(docsEditCommand)
+
+docs
+  .command('attach')
+  .description('Attach a file or image to a document, and place it')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<file>', 'The file to attach')
+  .option('--name <filename>', 'The name it shows with (default: the file name)')
+  .option('--after <anchor>', 'Place it after the block this text is in, or heading:Title, section:Title, end')
+  .option('--before <anchor>', 'Place it before the block this text is in, or heading:Title, section:Title, start')
+  .option('--at <place>', 'Place it at the start or end of the document')
+  .option('--occurrence <n>', 'Which match of --after/--before: a number, first or last')
+  .option('--base-revision <n>', 'Refuse to place it if the document has changed since this revision')
+  .option('--json', 'Output as JSON: the attachment, or the document after placing it with the attachment')
+  .option('--quiet', 'Output only the attachment UUID')
+  .addHelpText(
+    'after',
+    '\nA PNG, JPEG, GIF or WebP image shows in the document; anything else is a file people download. The\n' +
+      'type is read from the file itself. Needs the editor role.\n' +
+      '\nWith --after, --before or --at the file is uploaded and placed as one more edit, and the document\n' +
+      'after it is printed. Without one it is only uploaded, and its markdown is printed: put that, alone\n' +
+      "on its own line, anywhere an edit takes markdown ('cirrux docs insert', 'write' or 'edit').\n" +
+      'Attaching the same file twice gives the same attachment.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux docs attach <uuid> chart.png --after "section:Results"\n' +
+      '  $ cirrux docs attach <uuid> minutes.pdf --at end\n' +
+      '  $ cirrux docs attach <uuid> chart.png --quiet',
+  )
+  .action(docsAttachCommand)
+
+docs
+  .command('download')
+  .description("Download an attachment's file (raw bytes to stdout, or --output)")
+  .argument('<document>', 'Document UUID or link')
+  .argument('<attachment>', "Attachment UUID, or the attachment:<uuid> link 'cirrux docs read' prints")
+  .option('--output <path>', 'Write the file to this path')
+  .option('--json', 'Output as JSON: the attachment, with its file base64url-encoded in data')
+  .option('--quiet', 'Output only the base64url-encoded file (with --output: the path)')
+  .addHelpText(
+    'after',
+    "\nAttachments are the ![name](attachment:<uuid>) and [name](attachment:<uuid>) lines of 'cirrux docs read'.\n" +
+      'The viewer role is enough.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux docs download <uuid> attachment:<attachment-uuid> --output chart.png\n' +
+      '  $ cirrux docs download <uuid> <attachment-uuid> > minutes.pdf',
+  )
+  .action(docsDownloadCommand)
 
 const docsComments = docs
   .command('comments')
@@ -951,8 +1036,53 @@ docsComments
   .option('--message <uuid>', 'Delete only this reply')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the deleted UUID')
-  .addHelpText('after', "\nYour own comments and replies, or anyone's if you manage or own the document.")
+  .addHelpText(
+    'after',
+    "\nYour own comments and replies, or anyone's if you manage or own the document. Deleting a suggestion\n" +
+      "withdraws it, as 'cirrux docs suggestions withdraw' does.",
+  )
   .action(docsCommentsDeleteCommand)
+
+const docsSuggestions = docs
+  .command('suggestions')
+  .description('Decide suggestions: accept and reject (editor role), or withdraw your own')
+  .addHelpText(
+    'after',
+    "\nMake suggestions with --suggest on 'cirrux docs replace', 'insert', 'delete-text' and 'edit'.\n" +
+      "List the open ones with 'cirrux docs read <document> --comments'; add --json for their UUIDs.",
+  )
+
+docsSuggestions
+  .command('accept')
+  .description('Accept a suggestion: make the change it suggests')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<suggestion>', 'Suggestion UUID')
+  .option('--json', 'Output the document after it as JSON')
+  .option('--quiet', 'Output only the new revision')
+  .action((document: string, suggestion: string, options: OutputOptions) =>
+    docsSuggestionsDecideCommand(document, suggestion, 'accept', options),
+  )
+
+docsSuggestions
+  .command('reject')
+  .description('Reject a suggestion: leave the document as it was')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<suggestion>', 'Suggestion UUID')
+  .option('--json', 'Output the document after it as JSON')
+  .option('--quiet', 'Output only the new revision')
+  .action((document: string, suggestion: string, options: OutputOptions) =>
+    docsSuggestionsDecideCommand(document, suggestion, 'reject', options),
+  )
+
+docsSuggestions
+  .command('withdraw')
+  .description('Take back a suggestion of yours, and delete it')
+  .argument('<document>', 'Document UUID or link')
+  .argument('<suggestion>', 'Suggestion UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the withdrawn UUID')
+  .addHelpText('after', "\nYour own suggestions, or anyone's if you manage or own the document.")
+  .action(docsSuggestionsWithdrawCommand)
 
 docs
   .command('create')

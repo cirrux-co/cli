@@ -169,6 +169,7 @@ cirrux docs get https://docs.cirrux.co/d/<uuid>
 cirrux docs read https://docs.cirrux.co/d/<uuid> --comments
 cirrux docs replace <document-uuid> "Monday" "Friday"
 cirrux docs insert <document-uuid> "## Risks" --at end
+cirrux docs attach <document-uuid> chart.png --after "section:Results"
 cirrux docs comments add <document-uuid> "Is this firm?" --on "Monday"
 cirrux docs create --title "Launch plan"
 cirrux docs rename <document-uuid> "Launch plan v2"
@@ -224,6 +225,11 @@ cirrux docs restore <document-uuid>
 | `cirrux docs delete-text <document> <find>`                           | Delete quoted text, across paragraphs if it spans them                                               |
 | `cirrux docs write <document>`                                        | Replace the whole document with markdown (`--file`, or stdin)                                        |
 | `cirrux docs edit <document> --operations <file>`                     | Several edits as one revision, from a JSON list of operations                                        |
+| `cirrux docs attach <document> <file>`                                | Attach a file or image, placed `--after`/`--before` a quote or `--at start\|end` (editor role)       |
+| `cirrux docs download <document> <attachment>`                        | Download an attachment's file to stdout or `--output` (takes `attachment:<uuid>` as printed by read) |
+| `... replace\|insert\|delete-text\|edit --suggest`                    | Suggest the change instead of making it, for people to accept or reject (`--comment`; commenter role) |
+| `cirrux docs suggestions accept\|reject <document> <suggestion>`       | Accept or reject a suggestion (editor role)                                                          |
+| `cirrux docs suggestions withdraw <document> <suggestion>`            | Take back a suggestion of yours                                                                      |
 | `cirrux docs comments add <document> [body]`                          | Comment on quoted text (`--on`) or the whole document (commenter role)                               |
 | `cirrux docs comments reply\|edit\|resolve\|reopen\|delete ...`        | Reply to, edit your words in, resolve, reopen or delete a comment                                    |
 | `cirrux docs create`                                                  | Create an empty document (`--title`; needs the `docs.write` scope)                                   |

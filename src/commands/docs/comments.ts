@@ -29,7 +29,7 @@ function usage(message: string, options: OutputOptions, hint?: string): never {
   outputError(message, { ...options, code: ExitCode.USAGE_ERROR, errorType: 'usage_error', ...(hint ? { hint } : {}) })
 }
 
-function threadUuid(value: string, options: OutputOptions, name = 'comment'): string {
+export function threadUuid(value: string, options: OutputOptions, name = 'comment'): string {
   if (UUID.test(value.trim())) return value.trim().toLowerCase()
   usage(`'${value}' is not a ${name} UUID.`, options, "Find it with 'cirrux docs read <document> --comments --json'.")
 }

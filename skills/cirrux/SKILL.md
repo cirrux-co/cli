@@ -1,6 +1,6 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, comment on, create, rename, trash and restore a document, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
@@ -422,6 +422,12 @@ cirrux docs insert <uuid-or-link> "## Risks" --at end           # or --after/--b
 cirrux docs delete-text <uuid-or-link> "We may slip."           # text; a paragraph whose whole text goes is removed
 cirrux docs write <uuid-or-link> --file draft.md                # the whole document; only what differs changes
 cirrux docs edit <uuid-or-link> --operations ops.json           # several edits as one, from JSON (- for stdin)
+cirrux docs attach <uuid-or-link> chart.png --after "section:Results"   # upload a file or image and place it
+cirrux docs attach <uuid-or-link> chart.png --quiet             # upload only; prints the attachment uuid
+cirrux docs download <uuid-or-link> attachment:<uuid> --output chart.png   # an attachment's file (stdout without --output)
+cirrux docs replace <uuid-or-link> "Monday" "Friday" --suggest --comment "The invite says Friday."  # suggest it instead
+cirrux docs suggestions accept|reject <uuid-or-link> <suggestion-uuid>   # decide a suggestion (editor role)
+cirrux docs suggestions withdraw <uuid-or-link> <suggestion-uuid>        # take back one of yours
 cirrux docs comments add <uuid-or-link> "Is this firm?" --on "Monday"   # a comment on quoted words (or the whole doc)
 cirrux docs comments reply <uuid-or-link> <comment-uuid> "Checked."    # reply
 cirrux docs comments edit <uuid-or-link> <comment-uuid> "New words"    # your latest message there (--message to pick)
@@ -440,7 +446,7 @@ cirrux docs restore <uuid-or-link>                 # take it out of Trash
 How `docs read` writes what markdown cannot:
 - **Suggestions** (tracked changes people have proposed but nobody has accepted) are inline CriticMarkup, each followed by a reference: `{++added++}{>>s1<<}`, `{--removed--}{>>s1<<}`, `{~~old~>new~~}{>>s1<<}`, and `{==text==}{>>s1<<}` for a change of formatting. At the start of a block, `{++¶++}{>>s1<<}` means a suggested new paragraph or line break, `{--¶--}` a removed one, and `{==¶==}` a suggested change of block type (a paragraph becoming a heading). The text as it stands today is the text without the `{++…++}` parts and with the `{--…--}` parts; say so when you quote or summarize it, and don't present a suggestion as agreed.
 - **Comments** are not marked in the text. `--comments` lists every open thread after the document: the suggestion it belongs to (`[s1]`) or the text a comment is on, who wrote it, and its messages. A comment "whose text was deleted" is on something no longer in the document; one "on the whole document" is not on any text. Resolved comments and decided suggestions are left out.
-- **Attachments** link to `attachment:<uuid>`. They cannot be downloaded from the CLI yet.
+- **Attachments** are `![name](attachment:<uuid>)` (an image) or `[name](attachment:<uuid>)` (a file), alone on their line. Leave those lines as they are when you edit around them. Download one with `cirrux docs download <doc> attachment:<uuid> --output <path>` (the viewer role is enough) when you need what it holds, such as a picture to look at or a PDF to read; without `--output` the raw bytes go to stdout, and `--json` gives the attachment with its file base64url-encoded in `data`. One still uploading, or whose upload failed, exits `5` (`not_uploaded`).
 
 With `--json` you get `revision`, `markdown` and `threads` (each with `uuid`, `kind`, `ref`, `placement` of `attached`/`document`/`detached`, `quote`, `suggested_text`, `author` and `messages` with markdown `body`). `--quiet` prints only the revision.
 
@@ -450,19 +456,48 @@ With `--json` you get `revision`, `markdown` and `threads` (each with `uuid`, `k
 - **`insert`** puts markdown `--after` or `--before` an anchor: a quote (the top-level block it is in), `heading:Title` (that heading), `section:Title` (the heading and everything up to the next heading as high or higher), or `--at start|end`. A list inserted next to a list item joins that list.
 - **`delete-text`** may span paragraphs; a paragraph whose whole text it finds is removed.
 - **`write`** sets the whole document. Only the blocks that differ change, so it is safe on a document people are in, but `replace`/`insert`/`delete-text` say more plainly what you changed.
-- **`edit --operations`** applies a JSON list in one go (`replace {find, with, occurrence?, before?, after?}`, `insert {markdown, after|before}`, `delete {find, occurrence?, before?, after?}`, `set_document {markdown}`), each to the document the ones before it left, as one revision or not at all. Prefer it for several related changes.
+- **`edit --operations`** applies a JSON list in one go, each to the document the ones before it left, as one revision or not at all. Prefer it for several related changes. Each operation is a flat object with a `type` field, never keyed by its type (`{"delete": {...}}` is refused):
+  ```json
+  [
+    {"type": "replace", "find": "Monday", "with": "Friday", "occurrence": "first"},
+    {"type": "insert", "markdown": "## Risks\n\nWe may slip.", "after": "section:Timeline"},
+    {"type": "delete", "find": "TBD", "before": "Owner: "}
+  ]
+  ```
+  `replace` and `delete` take the optional `occurrence`, `before` and `after` of the matching commands. `insert` takes exactly one of `after`/`before`, anchored as for `docs insert`, with `"before": "start"` and `"after": "end"` for the ends of the document. `{"type": "set_document", "markdown": "..."}` sets the whole document, as `docs write` does.
 - **Pass `--base-revision <revision you read>`** when what you change depends on what you read. If someone has edited since, the edit is refused (exit `5`, `conflict`) and nothing changes: read again and redo it. With `--json`, the refusal carries the document as it is now.
-- **Edits are plain edits, made as the user.** They are not suggestions and leave comments alone. Don't edit inside `{++…++}` or `{--…--}`: those are people's suggestions, to accept or reject in the editor.
+- **Edits are plain edits, made as the user.** They leave comments alone: text a `replace` puts inside a comment's words stays in that comment. Don't edit inside `{++…++}` or `{--…--}`: those are people's suggestions, to accept or reject.
 - People with the document open see the edit at once.
 
-**Comment with `docs comments`** (the commenter role is enough). Prefer a comment over an edit when the user asked you to review, question or flag something rather than change it.
+**Attach files and images with `docs attach`** (editor role). `cirrux docs attach <doc> <file> --after <anchor>` (or `--before`, `--at start|end`, anchored as for `insert`) uploads the file and places it as one more edit, then prints the document after it. A PNG, JPEG, GIF or WebP shows in the page; anything else (a PDF, a spreadsheet) is a file card people download. The type is read from the bytes, so naming a file `.png` changes nothing. `--name` sets the name it shows with.
+- **Without a place it is only uploaded**, and prints the markdown that places it: put that line, alone, wherever an `insert`, `write` or `edit` takes markdown. Use this to place several files inside one `edit`, or a picture in the middle of a `write`. `--json` gives the attachment (`uuid`, `filename`, `content_type`, `byte_size`, `width`, `height`, `inline`, `markdown`); `--quiet` its uuid.
+- **Attaching the same file twice is the same attachment**, so a retry uploads nothing twice. If the upload works but placing it fails (a quote that is not there, a conflict), the error says so and gives the markdown to place it with: fix the anchor and `insert` that, don't attach again.
+- An image by URL is not fetched: download it first, then attach the file.
+
+**What markdown a document holds.** `insert`, `write`, `edit` and a `replace`'s `with` take markdown, but a document only holds some of it. Anything else is accepted without an error and quietly flattened, so check your markdown against this list before you send it:
+- **Supported:** paragraphs, headings `#` to `######`, bullet and numbered lists (nested too), `>` quotes, `---` horizontal rules, `**bold**`, `*italic*`, `<u>underline</u>`, `~~strikethrough~~`, `` `inline code` ``, `[links](https://…)`, and line breaks inside a paragraph or item, written as a backslash or two spaces at the end of the line (or `<br>`).
+- **Not supported, and what becomes of it:** a **table** stays as its text, pipes and all, in one paragraph; a **fenced code block** becomes its lines as inline code, and its language is dropped; a **task list** becomes plain bullets, and the checkboxes and their checked state are lost; an **image by URL** becomes a link to it (only an `attachment:<uuid>` of this document stays an attachment: add pictures with `docs attach`); **raw HTML** other than the tags above becomes its text; footnotes and definition lists are not markdown here at all.
+- **Write those another way:** a table as a list (one item per row, `**Label:** value`) or as short paragraphs; code as inline code, a line each; a checklist as a plain list, saying in words what is done. If the user asked for a table or a checklist, say that Docs cannot hold one yet rather than leave a mangled one behind.
+
+**Suggest with `--suggest`** on `replace`, `insert`, `delete-text` and `edit` (the commenter role is enough). The change is not made: it shows in the editor as a suggestion, with a card people accept or reject. **Prefer suggesting over editing when the user asked you to review, propose, improve or tighten a document someone else will read, or when you only have the commenter role**; edit outright when the user asked you to make the change, or the document is theirs alone to write.
+- What it would take out stays, marked for removal, and what it brings in is added, marked. Quotes, `--occurrence`, `--before`, `--after` and `--base-revision` work as for an edit.
+- **Each change is its own suggestion**, decided on its own, and `edit --suggest` makes one per operation. Keep each one a single reviewable change: suggest a sentence rewrite as one `replace`, not as a `delete` plus an `insert`.
+- **Say why with `--comment <markdown>`** (in `edit --operations`, a `"comment"` field on each operation). It is the first message on the suggestion's card. Do it whenever the reason is not obvious from the change itself.
+- A `delete-text --suggest` of a whole paragraph takes its break too, so accepting it leaves no empty line.
+- It prints the document after it, then each new suggestion with its `[s1]` reference and uuid (`--json`: `suggestions` holds the new uuids, one per operation, in order).
+- `write` cannot suggest; neither can `edit` with `set_document` (exit `2`, `not_suggestible`). Suggest the parts that change instead. Text already suggested for removal is `nothing_to_suggest`.
+- **Deciding:** `suggestions accept` makes the change and `suggestions reject` drops it, both closing the suggestion (editor role, `docs.write`). Only accept or reject other people's suggestions when the user asked you to. `suggestions withdraw` takes back one of yours; `comments delete` on a suggestion does the same. Suggestion uuids are in `docs read --comments` (and `--json`).
+
+**Don't start a new document with an `# H1`.** The title (`docs create --title`, or `docs rename`) is the document's heading, shown above the body. Put it there and begin the body with the content itself. Repeating the title as an H1 shows it twice.
+
+**Comment with `docs comments`** (the commenter role is enough). Comment when you want to question or flag something without proposing words for it; when you know what it should say, suggest the change instead.
 - `comments add --on <quote>` marks the comment on those words, matched like an edit's quote (`--occurrence`, `--before`, `--after`); without `--on` it is on the whole document. The body is markdown.
 - Comment UUIDs are in `docs read --comments` (and `--json`, which also has each message's UUID). Every command prints the comment after it.
-- You can only edit or delete your own words; deleting someone else's comment needs the manager or owner role. A suggestion (`[s1]`) is not resolved: it is accepted or rejected in the editor.
+- You can only edit or delete your own words; deleting someone else's comment needs the manager or owner role. A suggestion (`[s1]`) is not resolved: it is accepted or rejected (`docs suggestions`).
 
 **What you may do depends on your role on the document**, which `docs list` and `docs get` show:
-- a viewer can only read it, and a commenter can also comment;
-- an editor can also edit and rename it;
+- a viewer can only read it, and a commenter can also comment and suggest;
+- an editor can also edit and rename it, and accept or reject suggestions;
 - trashing and restoring need the owner or a manager.
 
 A refusal exits `4` with the reason. An untitled document has a null `title` in `--json` and shows as "Untitled document" in text.
@@ -677,4 +712,4 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, and `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments. Snoozing, contact writes, and suggesting in a document are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments, and `--suggest` on the content commands with `docs suggestions accept` / `reject` / `withdraw` for suggestions. Snoozing and contact writes are not yet exposed — say so rather than fabricating commands.
