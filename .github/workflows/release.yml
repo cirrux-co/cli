@@ -23,6 +23,11 @@ jobs:
           - os: ubuntu-latest
             target: bun-linux-x64
             asset: cirrux-linux-x64
+          # Built on a native arm64 runner rather than cross-compiled, so the
+          # post-tar smoke test below actually executes the shipped binary.
+          - os: ubuntu-24.04-arm
+            target: bun-linux-arm64
+            asset: cirrux-linux-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +91,7 @@ jobs:
       # build directory. This is what catches signature corruption that only
       # surfaces after the file has moved.
       - name: Smoke test (post-tar)
-        if: matrix.target == 'bun-darwin-arm64' || matrix.target == 'bun-linux-x64'
+        if: matrix.target != 'bun-darwin-x64'
         run: |
           mkdir -p smoke && tar -xzf ${{ matrix.asset }}.tar.gz -C smoke
           ./smoke/cirrux --version
@@ -106,6 +111,7 @@ jobs:
       sha_darwin_arm64: ${{ steps.sha.outputs.sha_darwin_arm64 }}
       sha_darwin_x64: ${{ steps.sha.outputs.sha_darwin_x64 }}
       sha_linux_x64: ${{ steps.sha.outputs.sha_linux_x64 }}
+      sha_linux_arm64: ${{ steps.sha.outputs.sha_linux_arm64 }}
     steps:
       - name: Extract version
         id: version
@@ -121,6 +127,7 @@ jobs:
           echo "sha_darwin_arm64=$(shasum -a 256 artifacts/cirrux-darwin-arm64/cirrux-darwin-arm64.tar.gz | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "sha_darwin_x64=$(shasum -a 256 artifacts/cirrux-darwin-x64/cirrux-darwin-x64.tar.gz | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "sha_linux_x64=$(shasum -a 256 artifacts/cirrux-linux-x64/cirrux-linux-x64.tar.gz | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sha_linux_arm64=$(shasum -a 256 artifacts/cirrux-linux-arm64/cirrux-linux-arm64.tar.gz | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -131,6 +138,7 @@ jobs:
             artifacts/cirrux-darwin-arm64/cirrux-darwin-arm64.tar.gz
             artifacts/cirrux-darwin-x64/cirrux-darwin-x64.tar.gz
             artifacts/cirrux-linux-x64/cirrux-linux-x64.tar.gz
+            artifacts/cirrux-linux-arm64/cirrux-linux-arm64.tar.gz
 
   update-tap:
     needs: release
@@ -147,6 +155,7 @@ jobs:
           SHA_DARWIN_ARM64: ${{ needs.release.outputs.sha_darwin_arm64 }}
           SHA_DARWIN_X64: ${{ needs.release.outputs.sha_darwin_x64 }}
           SHA_LINUX_X64: ${{ needs.release.outputs.sha_linux_x64 }}
+          SHA_LINUX_ARM64: ${{ needs.release.outputs.sha_linux_arm64 }}
         run: |
           cat > Formula/cirrux.rb << FORMULA
           class Cirrux < Formula
@@ -169,6 +178,10 @@ jobs:
               on_intel do
                 url "https://github.com/cirrux-co/cli/releases/download/v${VERSION}/cirrux-linux-x64.tar.gz"
                 sha256 "${SHA_LINUX_X64}"
+              end
+              on_arm do
+                url "https://github.com/cirrux-co/cli/releases/download/v${VERSION}/cirrux-linux-arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
               end
             end
 

@@ -224,7 +224,9 @@ const conditionAstHelp =
   'hasattachment/isreply/fromcontact ({"value":<bool>}), sizegreaterthan/sizelessthan ({"bytes":<int>}), ' +
   'fromcontactgroup ({"contact_group_uuid":"..."}).\n' +
   'action types: add_label ({"label_uuid"}), skip_inbox, mark_read (opt value), flag (opt value), ' +
-  'archive, delete, forward ({"forwarding_address_uuid"}), never_mark_as_spam.'
+  'archive, auto_archive, delete, destroy, forward ({"forwarding_address_uuid"}), never_mark_as_spam.\n' +
+  'forward: one action per address, each at most once; the address must belong to this mailbox, and one ' +
+  'still pending verification is accepted (forwards once verified).'
 
 mailboxFilters
   .command('list')
@@ -779,6 +781,8 @@ const MARKDOWN_HELP =
   '\nA document holds paragraphs, headings, bullet and numbered lists (nested), quotes, horizontal rules,\n' +
   'bold, italic, <u>underline</u>, ~~strikethrough~~, `inline code`, links and line breaks (end the line\n' +
   'with a backslash or two spaces), and its attachments: ![name](attachment:<uuid>) alone on a line.\n' +
+  'Text color and highlight are <span data-color="red">red</span> and <mark data-color="yellow">marked</mark>,\n' +
+  'in gray, red, orange, yellow, green, teal, blue, purple or pink; any other color is dropped.\n' +
   'It has no tables, code blocks or task lists, and no images from elsewhere: a table stays as its text,\n' +
   'pipes and all, in one paragraph; a code block becomes lines of inline code without its language; a\n' +
   'task list becomes plain bullets without its checkboxes; an image by URL becomes a link to it. Write\n' +
