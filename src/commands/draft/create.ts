@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs'
 import { authedRequest } from '../../api.js'
 import { type ApiErrorRule, handleApiError } from '../../api-errors.js'
 import { ExitCode } from '../../exit-codes.js'
+import { applyReminder, type ReminderOptions } from './reminder.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
 import { type Draft, requireCredentials } from './draft-shared.js'
 
-export interface DraftCreateOptions extends OutputOptions {
+export interface DraftCreateOptions extends OutputOptions, ReminderOptions {
   mailboxUuid?: string
   file?: string
   markdown?: string
@@ -115,6 +116,8 @@ export async function draftCreateCommand(options: DraftCreateOptions): Promise<v
   if (options.inReplyTo) {
     body.in_reply_to_email_uuid = options.inReplyTo
   }
+
+  applyReminder(body, options)
 
   try {
     const draft = await authedRequest<Draft>('public_api/v1/drafts', {

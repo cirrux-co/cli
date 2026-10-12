@@ -205,6 +205,10 @@ cirrux thread list <mailbox-uuid> --cursor <cur>   # pagination (cursor is in th
 cirrux thread get <thread-uuid>                    # thread with all non-deleted emails (uuid, from, subject, labels, attachment counts)
 cirrux thread search "<query>" --mailbox-uuid <uuid>  # search threads in one mailbox (preferred — see Search section)
 cirrux thread search "<query>"                         # cross-mailbox search (use only when the user hasn't narrowed to one)
+cirrux thread snooze <thread-uuid> --until "monday"    # snooze the whole conversation until Monday 9am
+cirrux thread snooze <thread-uuid> --until "+3d" --if-no-reply  # only bring it back if nobody replies
+cirrux thread unsnooze <thread-uuid>                   # cancel a thread's snooze
+cirrux thread list <mailbox-uuid> --label snoozed      # what's currently snoozed
 ```
 
 ### Email
@@ -231,6 +235,9 @@ cirrux email labels add <email-uuid> --label-uuid <label-uuid>     # add a custo
 cirrux email labels remove <email-uuid> --label-uuid <label-uuid>  # remove a custom label
 cirrux email labels add <email-uuid> --type auto_archive          # archive it automatically in 30 days (inbox emails only)
 cirrux email labels remove <email-uuid> --type auto_archive       # cancel a pending auto-archive
+cirrux email snooze <email-uuid> --until "tomorrow 9am"           # snooze until tomorrow morning
+cirrux email snooze <email-uuid> --until "+1w" --if-no-reply      # remind me in a week unless they reply
+cirrux email unsnooze <email-uuid>                                # cancel a snooze
 ```
 
 `cirrux email content` writes directly to stdout (no `--json` wrapping) so you can pipe it to a file: `cirrux email content <uuid> raw > message.eml`.
@@ -252,7 +259,18 @@ All mutations return the updated email (same shape as `cirrux email get`), so `-
 
 `cirrux email labels add <uuid> --type auto_archive` keeps the email in the inbox and archives it 30 days later (an hourly server job does the archiving, so it can land up to an hour after the 30 days). It only works on an email that is in the inbox; anything else is rejected with a 422 `invalid_state`. Adding it while it is already on is a no-op and does **not** restart the 30 days; to restart, remove it and add it again. Archiving the email by hand drops the pending auto-archive. `auto_archive` is not a location, so `email move --type auto_archive` is rejected. For a whole thread, apply it to each email in the thread that is in the inbox (that is what the web app does). To auto-archive incoming mail, create a filter with an `auto_archive` action instead.
 
-Thread-level versions of these verbs (`cirrux thread archive`, `cirrux thread move`, etc.) are not available yet — loop over `cirrux thread get <thread-uuid> --quiet` and apply the verb per email if you need to operate on a whole thread.
+Thread-level versions of these verbs (`cirrux thread archive`, `cirrux thread move`, etc.) are not available yet — loop over `cirrux thread get <thread-uuid> --quiet` and apply the verb per email if you need to operate on a whole thread. Snooze is the exception: `cirrux thread snooze` / `unsnooze` exist and operate on the whole conversation in one call.
+
+### Snooze and reminders
+
+Snoozing takes an email or thread out of the inbox and brings it back later, unread, as if it had just arrived. Both `email snooze` and `thread snooze` take `--until` and an optional `--if-no-reply`.
+
+- **`--until`** accepts `+2d` / `+3h` / `+30m` / `+1w`, phrases like `tomorrow 9am`, `tonight`, `monday`, `3 hours`, `mar 20`, or a full ISO 8601 timestamp. A bare day means 9am; `tonight` means 18:00. Everything is resolved in the **local timezone of the machine running the CLI**, then sent to the server as an absolute instant. A time in the past is rejected with exit `2` rather than silently accepted.
+- **Without `--if-no-reply`** the wake-up always happens. **With it**, the wake-up is cancelled silently if the other party replies first — that is how "remind me if they don't get back to me" is expressed. Our own replies in the thread don't count as an answer.
+- **Snoozing is idempotent in the useful sense**: snoozing an already-snoozed message overwrites the wake-up time, so it doubles as "change when this comes back". `unsnooze` on something that isn't snoozed is a no-op returning 200.
+- **`unsnooze` brings the message back to the inbox**, the same place a wake-up would have put it, taking it out of the archive if it was archived when it was snoozed. A message that already has somewhere else to live stays there: unsnoozing a sent message leaves it in Sent, and a trashed or junked one stays where it is.
+- **Drafts cannot be snoozed** (`422 invalid_state`). Set a reminder on the draft instead — see the Draft section.
+- Requires the `email.write` scope. `cirrux thread list <mailbox-uuid> --label snoozed` shows what is currently snoozed.
 
 ### Draft
 
@@ -269,6 +287,11 @@ cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md \
 
 cirrux draft delete <draft-uuid>                                       # delete a draft
 cirrux draft send <draft-uuid>                                         # send a draft immediately
+
+# Reminders — "follow up if they don't reply"
+cirrux draft create --mailbox-uuid <mailbox-uuid> --file message.eml \
+  --remind-at "+3d" --remind-if-no-reply                              # set while writing
+cirrux draft send <draft-uuid> --remind-at "+3d" --remind-if-no-reply  # set at send time
 ```
 
 `draft create` accepts the body in two mutually-exclusive shapes:
@@ -281,6 +304,8 @@ cirrux draft send <draft-uuid>                                         # send a 
 Supply `--in-reply-to <email-uuid>` (in either mode) to link the draft to a parent email. The draft joins the parent's thread, so `--mailbox-uuid` must be the parent's mailbox (read it with `cirrux email get <email-uuid> --json | jq -r .mailbox_uuid`); any other mailbox is rejected with 422 (`mailbox_mismatch`) and the error names the right one. The response is the new draft (uuid, headers, body_html, body_text, labels include `draft`).
 
 `draft delete` returns 204 with no body. Deleting an email that isn't a draft returns 422 (`not_a_draft`); deleting a non-existent draft returns 404.
+
+**Reminders on outgoing mail.** `--remind-at` (with optional `--remind-if-no-reply`) is accepted on both `draft create` and `draft send`, and takes the same time formats as `--until` on snooze. The reminder rides along on the draft and **stays inert until the message is actually sent** — a draft that is deleted or never sent never fires one, and the draft's `remind_at` is readable back via `draft create --json`. Passing it on `draft send` overrides whatever the draft was created with. With `--remind-if-no-reply`, the reminder is cancelled silently if the recipient replies, which is the usual intent; without it the reminder always fires and the sent message reappears in the inbox at that time. `--remind-if-no-reply` on its own (no `--remind-at`) is a usage error rather than a silent no-op.
 
 `draft send` requires the `email.send` OAuth scope (separate from `email.write`) — if the CLI was logged in before send was supported, run `cirrux logout && cirrux login` to re-grant. The response is the resulting email (no longer a draft: `sent` label applied, `draft` label removed). The draft must have at least one recipient; sending one with no `To`/`Cc`/`Bcc` returns 422 (`invalid_value`). Sending a non-draft returns 422 (`not_a_draft`); a draft with a future `send_draft_at` already scheduled returns 422 (`already_scheduled`).
 
@@ -706,6 +731,34 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
   --to "$to"
 ```
 
+### Snooze everything from a sender until Monday
+
+```bash
+mb=$(cirrux mailbox list --quiet | head -1)
+cirrux thread search "from:alice@example.com in:inbox" --mailbox-uuid "$mb" --quiet \
+  | while read -r thread; do
+      cirrux thread snooze "$thread" --until "monday" --quiet
+    done
+```
+
+### Send a nudge and remind yourself if it goes unanswered
+
+```bash
+mb=$(cirrux mailbox list --quiet | head -1)
+draft=$(cirrux draft create --mailbox-uuid "$mb" --markdown /tmp/nudge.md \
+  --subject "Following up" --to alice@example.com --quiet)
+cirrux draft send "$draft" --remind-at "+3d" --remind-if-no-reply
+```
+
+If Alice replies within three days the reminder is dropped silently; otherwise the sent message comes back to the inbox.
+
+### Review what's waiting to come back
+
+```bash
+mb=$(cirrux mailbox list --quiet | head -1)
+cirrux thread list "$mb" --label snoozed --json | jq -r '.data[] | "\(.snooze_until)\t\(.uuid)"'
+```
+
 ## Tips for agents
 
 - Always inspect `cirrux <command> --help` before guessing flags — the CLI is self-documenting and new flags land there first.
@@ -715,4 +768,4 @@ cirrux draft create --mailbox-uuid "$mb" --in-reply-to "$parent" \
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `draft create` / `draft delete` / `draft send` for drafts, and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments, and `--suggest` on the content commands with `docs suggestions accept` / `reject` / `withdraw` for suggestions. Snoozing and contact writes are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `email snooze` / `unsnooze` and `thread snooze` / `unsnooze` for wake-ups, `draft create` / `draft delete` / `draft send` for drafts (both `create` and `send` accept `--remind-at`), and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments, and `--suggest` on the content commands with `docs suggestions accept` / `reject` / `withdraw` for suggestions. Contact writes are not yet exposed — say so rather than fabricating commands.

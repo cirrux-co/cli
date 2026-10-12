@@ -111,6 +111,18 @@ cirrux draft delete <draft-uuid>
 
 `draft send` needs the `email.send` OAuth scope (separate from `email.write`); if you logged in before send existed, run `cirrux logout && cirrux login` to re-grant.
 
+### Snooze and reminders
+
+`cirrux email snooze` and `cirrux thread snooze` take an email or conversation out of the inbox and bring it back, unread, at a time you pick. `--until` accepts `+2d`, `+3h`, `tomorrow 9am`, `tonight`, `monday`, `3 hours`, `mar 20`, or an ISO 8601 timestamp, resolved in your machine's local timezone. Add `--if-no-reply` to cancel the wake-up automatically when the other party replies.
+
+```bash
+cirrux email snooze <email-uuid> --until "tomorrow 9am"
+cirrux thread snooze <thread-uuid> --until "+3d" --if-no-reply
+cirrux thread list <mailbox-uuid> --label snoozed
+```
+
+The same `--remind-at` / `--remind-if-no-reply` pair works on `draft create` and `draft send`, so you can send a message and have it come back to you if nobody answers. A reminder set at create time stays inert until the message is actually sent.
+
 **Attachments on outgoing mail:** there is no `--attach` flag, and markdown mode cannot carry files. The only way to send an attachment is to build a complete, valid MIME message yourself — a `multipart/mixed` body with each file as a base64-encoded part marked `Content-Disposition: attachment` — and pass it via `--file` or stdin. The backend then decodes and stores those parts, so the draft sends normally. Supply well-formed MIME; a malformed or truncated message may be rejected or drop the part. The `cirrux attachment` commands are download-only and do not add files to a draft.
 
 ### Drive
@@ -188,13 +200,15 @@ cirrux docs restore <document-uuid>
 | `cirrux thread list <mailbox-uuid>`                                   | List threads in a mailbox (`--label`, `--limit`, `--cursor`)                                         |
 | `cirrux thread get <thread-uuid>`                                     | Thread with all non-deleted emails                                                                   |
 | `cirrux thread search <query>`                                        | Search threads across your mailboxes (`--mailbox-uuid`, `--label`, `--limit`, `--cursor`)            |
+| `cirrux thread snooze <thread-uuid> --until <when>`                   | Snooze a whole conversation (`--if-no-reply`); `cirrux thread unsnooze` cancels                      |
 | `cirrux email get <email-uuid>`                                       | Email metadata                                                                                       |
 | `cirrux email content <email-uuid> body\|raw`                         | Rendered HTML body or full MIME                                                                      |
 | `cirrux email search <query>`                                         | Search individual emails across your mailboxes                                                       |
 | `cirrux email read <email-uuid>` / `cirrux email unread <email-uuid>` | Mark an email as read or unread                                                                      |
 | `cirrux email flag <email-uuid>` / `cirrux email unflag <email-uuid>` | Flag (star) or unflag an email                                                                       |
+| `cirrux email snooze <email-uuid> --until <when>`                     | Snooze an email until later (`--if-no-reply`); `cirrux email unsnooze` cancels                       |
 | `cirrux draft create --mailbox-uuid <uuid>`                           | Create a draft from a MIME message (`--file`/stdin) or markdown (`--markdown` + headers); `--in-reply-to` links a reply |
-| `cirrux draft send <draft-uuid>`                                      | Send a draft immediately (needs the `email.send` scope)                                              |
+| `cirrux draft send <draft-uuid>`                                      | Send a draft immediately (needs the `email.send` scope); `--remind-at <when>` sets a follow-up reminder |
 | `cirrux draft delete <draft-uuid>`                                    | Delete a draft                                                                                       |
 | `cirrux attachment get <attachment-uuid>`                             | Attachment metadata                                                                                  |
 | `cirrux attachment download <attachment-uuid>`                        | Raw bytes to stdout (use `--json` for base64url)                                                     |

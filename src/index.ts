@@ -44,6 +44,8 @@ import {
   emailUnspamCommand,
   emailMoveCommand,
 } from './commands/email/transitions.js'
+import { emailSnoozeCommand, emailUnsnoozeCommand } from './commands/email/snooze.js'
+import { threadSnoozeCommand, threadUnsnoozeCommand } from './commands/thread/snooze.js'
 import { collectAddress, draftCreateCommand } from './commands/draft/create.js'
 import { draftDeleteCommand } from './commands/draft/delete.js'
 import { draftSendCommand } from './commands/draft/send.js'
@@ -343,6 +345,43 @@ thread
   )
   .action(threadSearchCommand)
 
+thread
+  .command('snooze')
+  .description('Snooze a thread until a given time (snoozes every message in it)')
+  .argument('<uuid>', 'Thread UUID')
+  .requiredOption('--until <when>', "Wake-up time: '+2d', 'tomorrow 9am', 'monday', '3 hours', 'mar 20', or an ISO 8601 timestamp")
+  .option('--if-no-reply', 'Only bring the thread back if nobody has replied by then')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the thread UUID (for piping)')
+  .addHelpText(
+    'after',
+    `
+Examples:
+  $ cirrux thread snooze <uuid> --until "monday"
+  $ cirrux thread snooze <uuid> --until "+3d" --if-no-reply
+  $ cirrux thread list <mailbox-uuid> --label snoozed
+
+Times are resolved in this machine's local timezone.`,
+  )
+  .action(threadSnoozeCommand)
+
+thread
+  .command('unsnooze')
+  .description('Cancel a thread\'s snooze and bring it back to the inbox (idempotent)')
+  .argument('<uuid>', 'Thread UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the thread UUID (for piping)')
+  .addHelpText(
+    'after',
+    `
+Examples:
+  $ cirrux thread unsnooze <uuid>
+
+Every snoozed message in the thread follows the same rules as
+'cirrux email unsnooze'.`,
+  )
+  .action(threadUnsnoozeCommand)
+
 const email = program
   .command('email')
   .description('Manage emails')
@@ -466,6 +505,46 @@ email
   .option('--quiet', 'Output only the email UUID (for piping)')
   .action(emailMoveCommand)
 
+email
+  .command('snooze')
+  .description('Snooze an email until a given time')
+  .argument('<uuid>', 'Email UUID')
+  .requiredOption('--until <when>', "Wake-up time: '+2d', 'tomorrow 9am', 'monday', '3 hours', 'mar 20', or an ISO 8601 timestamp")
+  .option('--if-no-reply', 'Only bring the email back if nobody has replied by then')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .addHelpText(
+    'after',
+    `
+Examples:
+  $ cirrux email snooze <uuid> --until "tomorrow 9am"
+  $ cirrux email snooze <uuid> --until "+1w" --if-no-reply
+
+Snoozing removes the email from the inbox and brings it back, unread, at the
+given time. With --if-no-reply the wake-up is cancelled if the other party
+replies first. Times are resolved in this machine's local timezone.`,
+  )
+  .action(emailSnoozeCommand)
+
+email
+  .command('unsnooze')
+  .description('Cancel an email\'s snooze and bring it back to the inbox (idempotent)')
+  .argument('<uuid>', 'Email UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the email UUID (for piping)')
+  .addHelpText(
+    'after',
+    `
+Examples:
+  $ cirrux email unsnooze <uuid>
+
+Drops the wake-up and returns the email to the inbox, taking it out of the
+archive if it was archived when it was snoozed. A message that already lives
+somewhere else stays there: a sent message stays in Sent, a trashed or junked
+one stays where it is. Unsnoozing something that isn't snoozed is a no-op.`,
+  )
+  .action(emailUnsnoozeCommand)
+
 const emailLabels = email
   .command('labels')
   .description('Add or remove labels on an email (use email archive/trash/move for system locations)')
@@ -509,6 +588,8 @@ draft
     '--no-quote-original',
     'Do not quote the original email below your reply (markdown replies quote it by default)',
   )
+  .option('--remind-at <when>', "Set a reminder that fires after sending. Wake-up time: '+2d', 'tomorrow 9am', 'monday', '3 hours', 'mar 20', or an ISO 8601 timestamp")
+  .option('--remind-if-no-reply', 'Only remind if nobody has replied by then')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the new draft UUID (for piping)')
   .action(draftCreateCommand)
@@ -525,8 +606,19 @@ draft
   .command('send')
   .description('Send a draft')
   .argument('<uuid>', 'Draft UUID')
+  .option('--remind-at <when>', "Set a reminder that fires after sending. Wake-up time: '+2d', 'tomorrow 9am', 'monday', '3 hours', 'mar 20', or an ISO 8601 timestamp")
+  .option('--remind-if-no-reply', 'Only remind if nobody has replied by then')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the sent email UUID (for piping)')
+  .addHelpText(
+    'after',
+    `
+Examples:
+  $ cirrux draft send <uuid>
+  $ cirrux draft send <uuid> --remind-at "+3d" --remind-if-no-reply
+
+A reminder passed here overrides one set when the draft was created.`,
+  )
   .action(draftSendCommand)
 
 const attachment = program
