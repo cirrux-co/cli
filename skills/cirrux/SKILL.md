@@ -1,6 +1,6 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
@@ -141,6 +141,26 @@ cirrux mailbox labels delete <mailbox-uuid> <label-uuid>              # delete a
 ```
 
 Only custom (`user`-type) labels can be created, renamed, or deleted. Trying to rename or delete a system label (inbox/sent/archive/trash/junk/draft/snoozed) is rejected with a 422. Deleting a label removes it from every email it was assigned to; any email whose only remaining label was that one is moved to the archive, so it keeps a location instead of being cleaned up as an orphan.
+
+### Addresses (aliases)
+
+Every address that delivers to a mailbox: the primary one it sends from by default, plus any aliases. `<address>` takes the address's UUID or the email address itself.
+
+```bash
+cirrux mailbox addresses list <mailbox-uuid>                         # uuid, address, flags (primary / deactivated / auto-created); primary first
+cirrux mailbox addresses create <mailbox-uuid> newsletters@example.com
+cirrux mailbox addresses update <mailbox-uuid> newsletters@example.com --deactivate   # stop delivery, keep it reserved
+cirrux mailbox addresses update <mailbox-uuid> newsletters@example.com --activate     # deliver again
+cirrux mailbox addresses update <mailbox-uuid> hello@example.com --primary            # send from this one by default
+cirrux mailbox addresses delete <mailbox-uuid> newsletters@example.com
+```
+
+- **Plus addressing needs no alias.** Mail to `newsletters+xyz@example.com` already arrives at `newsletters@example.com`, for any tag, so only create the part before the `+`. `create` rejects an address with a `+` in it (exit `2`). The tag survives in the message's To header, so `cirrux email search 'to:newsletters+xyz@example.com'` finds that mail and a filter on `to` sorts it (`{"type":"contains","field":"to","value":"newsletters+xyz@"}`). Mail that reached the alias as a Bcc carries no tag to match on.
+- The address must be on one of the workspace's own domains, and the part before the `@` may only hold lowercase letters, numbers, dots, underscores and dashes. One already in use anywhere exits `5` (`address_taken`).
+- Adding, deactivating and deleting addresses is for workspace admins, unless the workspace lets members manage the addresses of their own mailboxes. Otherwise it exits `4` with `forbidden`: tell the user to ask an admin rather than retrying. Making an address primary is always up to the mailbox owner.
+- The primary address can be neither deactivated nor deleted (exit `2`); make another one primary first. `--activate --primary` together reactivates and promotes in one go.
+- **Prefer `--deactivate` over `delete`, and confirm with the user before deleting.** A deactivated address stays reserved and can be switched back on. A deleted one stops receiving mail and is free for anyone in the workspace to take.
+- An address flagged `auto-created` was recorded the first time mail for it arrived through the domain's catch-all. Deactivating it is how a user blocks that address from then on.
 
 ### Filters
 
@@ -768,4 +788,4 @@ cirrux thread list "$mb" --label snoozed --json | jq -r '.data[] | "\(.snooze_un
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox filters create` / `update` / `delete` for server-side filter rules, `email snooze` / `unsnooze` and `thread snooze` / `unsnooze` for wake-ups, `draft create` / `draft delete` / `draft send` for drafts (both `create` and `send` accept `--remind-at`), and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments, and `--suggest` on the content commands with `docs suggestions accept` / `reject` / `withdraw` for suggestions. Contact writes are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox addresses create` / `update` / `delete` for a mailbox's addresses (aliases), `mailbox filters create` / `update` / `delete` for server-side filter rules, `email snooze` / `unsnooze` and `thread snooze` / `unsnooze` for wake-ups, `draft create` / `draft delete` / `draft send` for drafts (both `create` and `send` accept `--remind-at`), and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments, and `--suggest` on the content commands with `docs suggestions accept` / `reject` / `withdraw` for suggestions. Contact writes are not yet exposed — say so rather than fabricating commands.

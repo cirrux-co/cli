@@ -19,6 +19,12 @@ import {
   mailboxFiltersListCommand,
   mailboxFiltersUpdateCommand,
 } from './commands/mailbox/filters.js'
+import {
+  mailboxAddressesCreateCommand,
+  mailboxAddressesDeleteCommand,
+  mailboxAddressesListCommand,
+  mailboxAddressesUpdateCommand,
+} from './commands/mailbox/addresses.js'
 import { threadListCommand } from './commands/thread/list.js'
 import { threadGetCommand } from './commands/thread/get.js'
 import { threadSearchCommand } from './commands/thread/search.js'
@@ -302,6 +308,69 @@ mailboxFilters
   .option('--quiet', 'Output only the deleted filter UUID (for piping)')
   .addHelpText('after', '\nExample:\n  $ cirrux mailbox filters delete <mailbox-uuid> <filter-uuid>')
   .action(mailboxFiltersDeleteCommand)
+
+const mailboxAddresses = mailbox
+  .command('addresses')
+  .alias('aliases')
+  .description('Manage the addresses (aliases) that deliver to a mailbox')
+
+const addressArgHelp = 'Address UUID or the email address itself (from `cirrux mailbox addresses list`)'
+
+mailboxAddresses
+  .command('list')
+  .description('List the addresses of a mailbox, the primary one first (deactivated ones included)')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only address UUIDs, one per line (for piping)')
+  .action(mailboxAddressesListCommand)
+
+mailboxAddresses
+  .command('create')
+  .description('Add an address to a mailbox (workspace admins, or members when the workspace allows it)')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .argument('<address>', 'The full email address, on one of the workspace\'s domains')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new address UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nExample:\n  $ cirrux mailbox addresses create <mailbox-uuid> newsletters@example.com\n\n' +
+      'Plus addressing needs no address of its own: once newsletters@example.com exists,\n' +
+      'mail to newsletters+anything@example.com arrives too.',
+  )
+  .action(mailboxAddressesCreateCommand)
+
+mailboxAddresses
+  .command('update')
+  .description('Deactivate, reactivate or make an address primary')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .argument('<address>', addressArgHelp)
+  .option('--deactivate', 'Stop delivering mail sent to this address (it stays reserved)')
+  .option('--activate', 'Deliver mail sent to this address again')
+  .option('--primary', 'Make this the address the mailbox sends from by default')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the address UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nExamples:\n' +
+      '  $ cirrux mailbox addresses update <mailbox-uuid> newsletters@example.com --deactivate\n' +
+      '  $ cirrux mailbox addresses update <mailbox-uuid> hello@example.com --activate --primary',
+  )
+  .action(mailboxAddressesUpdateCommand)
+
+mailboxAddresses
+  .command('delete')
+  .description('Remove an address from a mailbox (the primary address cannot be deleted)')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .argument('<address>', addressArgHelp)
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted address UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nMail to a deleted address stops arriving and anyone in the workspace can take the address.\n' +
+      'Use `update --deactivate` to switch it off but keep it reserved.\n\n' +
+      'Example:\n  $ cirrux mailbox addresses delete <mailbox-uuid> newsletters@example.com',
+  )
+  .action(mailboxAddressesDeleteCommand)
 
 const thread = program
   .command('thread')

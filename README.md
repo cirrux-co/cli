@@ -197,6 +197,8 @@ cirrux docs restore <document-uuid>
 | `cirrux feedback [message]`                                           | Send feedback about Cirrux or the CLI to the team (reads stdin if no message)                         |
 | `cirrux mailbox list`                                                 | List mailboxes you have access to                                                                    |
 | `cirrux mailbox get <mailbox-uuid>`                                   | Mailbox metadata                                                                                     |
+| `cirrux mailbox addresses list <mailbox-uuid>`                        | A mailbox's addresses (aliases): primary, deactivated and auto-created ones flagged                  |
+| `cirrux mailbox addresses create\|update\|delete ...`                  | Add an alias, `--deactivate`/`--activate` it or make it `--primary`, or remove it                    |
 | `cirrux thread list <mailbox-uuid>`                                   | List threads in a mailbox (`--label`, `--limit`, `--cursor`)                                         |
 | `cirrux thread get <thread-uuid>`                                     | Thread with all non-deleted emails                                                                   |
 | `cirrux thread search <query>`                                        | Search threads across your mailboxes (`--mailbox-uuid`, `--label`, `--limit`, `--cursor`)            |
