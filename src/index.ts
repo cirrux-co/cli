@@ -109,6 +109,9 @@ import { docsReadCommand } from './commands/docs/read.js'
 import { docsRenameCommand } from './commands/docs/rename.js'
 import { docsRestoreCommand } from './commands/docs/restore.js'
 import { docsTrashCommand } from './commands/docs/trash.js'
+import { docsShareCreateCommand } from './commands/docs/share/create.js'
+import { docsShareGetCommand } from './commands/docs/share/get.js'
+import { docsShareRevokeCommand } from './commands/docs/share/revoke.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { feedbackCommand } from './commands/feedback.js'
 import { skillInstallCommand, skillPrintCommand, skillUninstallCommand } from './commands/skill.js'
@@ -410,7 +413,9 @@ thread
     '\nExamples:\n' +
       '  $ cirrux thread search "invoice" --label Receipts\n' +
       '  $ cirrux thread search "invoice" --label <label-uuid>\n' +
-      '  $ cirrux thread search \'invoice label:"Project X" -label:done\'',
+      '  $ cirrux thread search \'invoice label:"Project X" -label:done\'\n' +
+      '  $ cirrux thread search "from:alice OR from:bob"\n' +
+      '  $ cirrux thread search "(invoice OR receipt) has:attachment"',
   )
   .action(threadSearchCommand)
 
@@ -475,7 +480,7 @@ email
 email
   .command('search')
   .description('Search individual emails across the user\'s mailboxes')
-  .argument('<query>', 'Search query (e.g. "has:attachment after:2026-01-01")')
+  .argument('<query>', 'Search query (e.g. "has:attachment after:2026-01-01", "from:alice OR from:bob")')
   .option('--mailbox-uuid <uuid>', 'Restrict results to a single mailbox')
   .option('--label <uuid-or-name>', 'Only emails with this label: a label UUID, or a name matched in every mailbox')
   .option('--limit <n>', 'Number of emails to return (1-100, default 25)')
@@ -1289,6 +1294,38 @@ docs
   .option('--quiet', 'Output only the document UUID (for piping)')
   .addHelpText('after', '\nExample:\n  $ cirrux docs restore $(cirrux docs list --trashed --quiet | head -1)')
   .action(docsRestoreCommand)
+
+const docsShare = docs
+  .command('share')
+  .description('Manage the public link anyone can read a document at without signing in')
+  .addHelpText(
+    'after',
+    '\nReaders see the text as it is when they open the link, without comments or pending suggestions.',
+  )
+
+docsShare
+  .command('create')
+  .description('Create a public link for a document (owner or manager role, and a paid workspace)')
+  .argument('<document>', 'Document UUID or link')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the public link URL (for piping)')
+  .action(docsShareCreateCommand)
+
+docsShare
+  .command('get')
+  .description('Show sharing settings (grants + public link) for a document')
+  .argument('<document>', 'Document UUID or link')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the public link URL, if any (for piping)')
+  .action(docsShareGetCommand)
+
+docsShare
+  .command('revoke')
+  .description("Revoke a document's public link; creating another gives a new URL")
+  .argument('<document>', 'Document UUID or link')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the document UUID (for piping)')
+  .action(docsShareRevokeCommand)
 
 const drive = program
   .command('drive')

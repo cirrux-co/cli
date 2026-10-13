@@ -1,6 +1,6 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, create or revoke its public link, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
@@ -485,7 +485,12 @@ cirrux docs create --title "Launch plan"           # an empty document; prints i
 cirrux docs rename <uuid-or-link> "Launch plan v2" # "" makes it untitled
 cirrux docs trash <uuid-or-link>                   # deleted for good after 30 days
 cirrux docs restore <uuid-or-link>                 # take it out of Trash
+cirrux docs share create <uuid-or-link>           # a public link: anyone with the printed URL can read it, signed out
+cirrux docs share get <uuid-or-link>              # its grants and public link (none, pending, ready or failed)
+cirrux docs share revoke <uuid-or-link>           # the URL stops working; creating another gives a new one
 ```
+
+**A public link only when the user asks for one.** It lets anyone with the URL read the document without signing in: the text as it is when they open it, without comments or pending suggestions, and everything typed afterwards too. Never create one to share a document with a person; share it with them in the Docs app instead. It works like `drive share`: one link per document (a second is `409 public_link_exists`, exit `5`), `pending` until it is ready a moment later. It needs the owner or manager role, and a paid workspace (`402 subscription_required`, exit `2`).
 
 **Every command that takes a document accepts its link.** Users paste `https://docs.cirrux.co/d/<uuid>` links; pass the link as-is rather than extracting the uuid yourself.
 
@@ -584,9 +589,13 @@ Supported query operators (ANDed by default, prefix with `-` to negate):
 | `after:` / `before:`          | `after:2026-01-01 before:2026-04-01`                                         |
 | Bare term                     | `invoice` (full-text)                                                        |
 | Phrase                        | `"monthly report"`                                                           |
-| Negate                        | `-from:noreply@example.com`                                                  |
+| Negate                        | `-from:noreply@example.com`, `-(from:a@example.com OR from:b@example.com)`   |
+| Either (uppercase `OR`)       | `from:alice OR from:bob`, `invoice OR receipt`                               |
+| Group                         | `(from:alice OR from:bob) has:attachment`                                    |
 
-Results exclude trash and junk automatically. Quote the whole query when it contains spaces or shell metacharacters: `cirrux thread search "from:alice is:unread"`.
+Results exclude trash and junk unless the query asks for them with `in:trash` or `in:spam`. Quote the whole query when it contains spaces or shell metacharacters: `cirrux thread search "from:alice is:unread"`.
+
+**`OR` binds tighter than the implicit AND**, as in Gmail: `invoice OR receipt is:unread` means `(invoice OR receipt) AND is:unread`. Only uppercase `OR` is an operator; a lowercase `or` is an ordinary word. Use brackets to group differently. A dangling `OR`, empty `()` or unbalanced brackets are rejected with exit code `2` and a message saying what to fix.
 
 **Custom labels go through `label:` (or `--label`), never `in:`.** `in:` only knows the system folders; `in:Receipts` is rejected with exit code `2`. A label name matches case-insensitively, with hyphens standing in for spaces or slashes, and it matches the label of that name in *every* mailbox searched, so scope with `--mailbox-uuid` when the user means one account. A name that matches no label returns zero results, not an error: when a label search comes back empty, check the name with `cirrux mailbox labels list <mailbox-uuid>`. `--label <label-uuid>` targets exactly one label and limits the search to that label's mailbox. `label:inbox` and the other system folder names work the same as `in:`.
 

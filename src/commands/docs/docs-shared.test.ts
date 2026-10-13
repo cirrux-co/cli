@@ -107,6 +107,25 @@ test('a refused rename or trash keeps the reason the API gave', () => {
   expect(result.message).toBe('Rename document failed: Renaming this document needs the editor role.')
 })
 
+test('a public link refused for want of a subscription says so', () => {
+  const error = new ApiError(402, JSON.stringify({ error: 'subscription_required' }))
+
+  const result = classifyApiError(error, { action: 'Create public link', rules: DOCS_ERROR_RULES })
+
+  expect(result.code).toBe(ExitCode.USAGE_ERROR)
+  expect(result.errorType).toBe('subscription_required')
+  expect(result.message).toBe("Create public link failed: the document's workspace needs a subscription.")
+})
+
+test('public_link_exists is a conflict pointing at share get, as in Drive', () => {
+  const error = new ApiError(409, JSON.stringify({ error: 'public_link_exists' }))
+
+  const result = classifyApiError(error, { action: 'Create public link', rules: DOCS_ERROR_RULES })
+
+  expect(result.code).toBe(ExitCode.CONFLICT)
+  expect(result.hint).toContain('docs share get')
+})
+
 const SAM = { self: false, first_name: 'Sam', last_name: 'Jansen', display_name: 'Sam Jansen' }
 const ME = { self: true, first_name: 'Ada', last_name: 'Lovelace', display_name: 'Ada Lovelace' }
 

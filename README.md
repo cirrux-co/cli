@@ -187,6 +187,7 @@ cirrux docs create --title "Launch plan"
 cirrux docs rename <document-uuid> "Launch plan v2"
 cirrux docs trash <document-uuid>
 cirrux docs restore <document-uuid>
+cirrux docs share create <document-uuid>
 ```
 
 ### Commands
@@ -251,10 +252,11 @@ cirrux docs restore <document-uuid>
 | `cirrux docs create`                                                  | Create an empty document (`--title`; needs the `docs.write` scope)                                   |
 | `cirrux docs rename <document> <title>`                               | Rename a document (editor role)                                                                      |
 | `cirrux docs trash <document>` / `cirrux docs restore <document>`     | Move a document to Trash, or take it out (owner or manager role)                                     |
+| `cirrux docs share create\|get\|revoke <document>`                  | A public link anyone can read the document at signed out: create, show or revoke it (owner or manager) |
 | `cirrux skill install` / `uninstall` / `print`                        | Connect coding agents to the bundled agent skill, remove it, or preview it                           |
 | `cirrux doctor`                                                       | Check the install, sign-in and each detected coding agent                                            |
 
-Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `in:inbox`/`in:sent`/`in:drafts`/`in:archive`/`in:trash`/`in:spam`/`in:snoozed`/`in:starred`, `label:<name>` (or `label:"Label name"`), `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, and `-` to negate. Terms are ANDed by default.
+Search supports `from:`, `to:`, `cc:`, `bcc:`, `subject:`, `body:`, `is:read`/`is:unread`/`is:starred`/`is:unstarred`/`is:replied`, `has:attachment`, `in:inbox`/`in:sent`/`in:drafts`/`in:archive`/`in:trash`/`in:spam`/`in:snoozed`/`in:starred`, `label:<name>` (or `label:"Label name"`), `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, bare terms for full-text, `"phrase match"`, `-` to negate a term or a group, uppercase `OR` between alternatives (`from:alice OR from:bob`) and `( )` to group (`(invoice OR receipt) has:attachment`). Terms are ANDed by default, and `OR` binds tighter than that AND, as in Gmail. Trash and spam are only searched when the query asks for them with `in:trash` or `in:spam`.
 
 Every data-producing command supports three output modes:
 

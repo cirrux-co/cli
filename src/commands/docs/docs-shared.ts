@@ -26,6 +26,36 @@ export interface CirruxDocument {
   owner: DocumentOwner
 }
 
+/** A document's public link, the twin of Drive's: anyone with `url` reads it signed out. */
+export interface DocumentPublicLink {
+  object: string
+  uuid: string
+  document_uuid: string
+  token: string
+  url: string
+  /** pending until its public copy is written, then ready (or failed). */
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DocumentAccessGrant {
+  object: string
+  uuid: string
+  principal_type: string
+  principal_user_uuid: string | null
+  principal_email: string | null
+  role: string
+  status: string
+}
+
+export interface DocumentSharing {
+  object: string
+  document_uuid: string
+  accesses: DocumentAccessGrant[]
+  public_link: DocumentPublicLink | null
+}
+
 export interface DocumentContentMessage {
   uuid: string
   author: DocumentOwner | null
@@ -157,6 +187,20 @@ export const DOCS_ERROR_RULES: ApiErrorRule[] = [
     errorCode: 'not_uploaded',
     exitCode: ExitCode.CONFLICT,
     hint: 'Its file is still on its way, or never arrived; whoever attached it can add it again.',
+  },
+  {
+    status: 409,
+    errorCode: 'public_link_exists',
+    exitCode: ExitCode.CONFLICT,
+    reason: 'a public link already exists for this document.',
+    hint: "Use 'cirrux docs share get' to see it, or revoke it first.",
+  },
+  {
+    // Making a document public is inviting everyone without an account, which needs a paid workspace.
+    status: 402,
+    errorCode: 'subscription_required',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: "the document's workspace needs a subscription.",
   },
   {
     status: 409,
