@@ -109,6 +109,8 @@ cirrux draft send <draft-uuid>
 cirrux draft delete <draft-uuid>
 ```
 
+Tables are not supported in outgoing mail yet, in markdown or MIME mode. The draft's `body_html` still shows the table, but `draft send` sends the structured body, which flattens a table into its cell text run together on one line. Write tabular data as a list instead.
+
 `draft send` needs the `email.send` OAuth scope (separate from `email.write`); if you logged in before send existed, run `cirrux logout && cirrux login` to re-grant.
 
 ### Snooze and reminders
@@ -167,6 +169,7 @@ cirrux calendar events create <calendar-uuid> --title "Offsite" --all-day --star
 cirrux calendar events update <calendar-uuid> <event-uuid> --location "Room 2"
 cirrux calendar events update <calendar-uuid> <uuid>_20260909T070000Z --title "Long standup"  # one occurrence
 cirrux calendar events delete <calendar-uuid> <event-uuid> --yes
+cirrux calendar events rsvp <calendar-uuid> <event-uuid> --status accepted
 
 # Contacts (read-only; a contact lives in an addressbook)
 cirrux contacts addressbooks
@@ -204,6 +207,8 @@ cirrux docs share create <document-uuid>
 | `cirrux thread get <thread-uuid>`                                     | Thread with all non-deleted emails                                                                   |
 | `cirrux thread search <query>`                                        | Search threads across your mailboxes (`--mailbox-uuid`, `--label`, `--limit`, `--cursor`)            |
 | `cirrux thread snooze <thread-uuid> --until <when>`                   | Snooze a whole conversation (`--if-no-reply`); `cirrux thread unsnooze` cancels                      |
+| `cirrux thread archive\|trash\|spam\|read\|flag <thread-uuid>`        | Act on a whole conversation as the web app would (each has an undo: `unarchive`, `untrash`, ...)    |
+| `cirrux thread move <thread-uuid>` / `thread labels add\|remove`      | File a conversation under a label, or label it (`--type` or `--label-uuid`)                          |
 | `cirrux email get <email-uuid>`                                       | Email metadata                                                                                       |
 | `cirrux email content <email-uuid> body\|raw`                         | Rendered HTML body or full MIME                                                                      |
 | `cirrux email search <query>`                                         | Search individual emails across your mailboxes                                                       |
@@ -230,6 +235,7 @@ cirrux docs share create <document-uuid>
 | `cirrux calendar events create <calendar-uuid>`                       | Create an event (`--title`, `--start`, `--end`, `--all-day`, `--recurrence`, `--attendee`)           |
 | `cirrux calendar events update <calendar-uuid> <event-id>`            | Change an event, or one occurrence when given an occurrence ID from `events list`                    |
 | `cirrux calendar events delete <calendar-uuid> <event-id>`            | Delete an event, or cancel one occurrence. Emails guests a cancellation, so confirms unless `--yes`  |
+| `cirrux calendar events rsvp <calendar-uuid> <event-id>`              | Answer an invitation (`--status accepted\|declined\|tentative`, `--comment`). Emails the organizer   |
 | `cirrux contacts addressbooks`                                        | List your addressbooks (needs the `contacts.read` scope)                                             |
 | `cirrux contacts list <addressbook-uuid>`                             | List the contacts in one addressbook (`--limit`, `--cursor`)                                         |
 | `cirrux contacts search <query>`                                      | Substring search over contact names, company and email addresses (`--addressbook-uuid`)              |

@@ -97,6 +97,17 @@ export const CALENDAR_ERROR_RULES: ApiErrorRule[] = [
     errorCode: 'not_organizer',
     exitCode: ExitCode.USAGE_ERROR,
     reason: 'only the organizer can change this event.',
+    hint: "To answer an invitation, use 'cirrux calendar events rsvp <calendar-uuid> <event-id> --status accepted'.",
+  },
+  {
+    errorCode: 'not_invited',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'you are not on the guest list of this event, so there is no invitation to answer.',
+  },
+  {
+    errorCode: 'organizer_cannot_rsvp',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'you organize this event, so there is no invitation to answer.',
   },
   {
     errorCode: 'use_occurrence_id',

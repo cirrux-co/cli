@@ -1,6 +1,6 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, create or revoke its public link, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events, accept or decline an invitation), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, create or revoke its public link, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
@@ -228,6 +228,13 @@ cirrux thread search "<query>"                         # cross-mailbox search (u
 cirrux thread snooze <thread-uuid> --until "monday"    # snooze the whole conversation until Monday 9am
 cirrux thread snooze <thread-uuid> --until "+3d" --if-no-reply  # only bring it back if nobody replies
 cirrux thread unsnooze <thread-uuid>                   # cancel a thread's snooze
+cirrux thread archive <thread-uuid>                    # archive the whole conversation (also unarchive)
+cirrux thread trash <thread-uuid>                      # trash it, drafts excepted (also untrash)
+cirrux thread spam <thread-uuid>                       # mark what you received as spam (also unspam)
+cirrux thread read <thread-uuid>                       # mark every message read (also unread: the last received one)
+cirrux thread flag <thread-uuid>                       # star its latest message (also unflag: every message)
+cirrux thread move <thread-uuid> --label-uuid <uuid>   # file the received messages under a label (or --type archive)
+cirrux thread labels add <thread-uuid> --label-uuid <uuid>     # label every received message (labels remove: every message)
 cirrux thread list <mailbox-uuid> --label snoozed      # what's currently snoozed
 ```
 
@@ -246,9 +253,9 @@ cirrux email unflag <email-uuid>              # unflag (unstar) the email
 cirrux email archive <email-uuid>             # archive (add archive, remove inbox)
 cirrux email unarchive <email-uuid>           # move back to inbox
 cirrux email trash <email-uuid>               # move to trash
-cirrux email untrash <email-uuid>             # restore from trash to inbox
+cirrux email untrash <email-uuid>             # restore from trash to where it was
 cirrux email spam <email-uuid>                # mark as spam
-cirrux email unspam <email-uuid>              # remove from spam, back to inbox
+cirrux email unspam <email-uuid>              # remove from spam, back to where it was
 cirrux email move <email-uuid> --type archive             # move to a system location (inbox/archive/trash/junk)
 cirrux email move <email-uuid> --label-uuid <label-uuid>  # move to a custom label (only that label remains)
 cirrux email labels add <email-uuid> --label-uuid <label-uuid>     # add a custom label (does not change location)
@@ -269,7 +276,7 @@ All mutations return the updated email (same shape as `cirrux email get`), so `-
 **Use the verbs (`archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`) for any inbox/archive/trash/junk transition** — they atomically swap the labels server-side so the email never ends up in two locations at once. Picking `cirrux email labels add --type archive` will be rejected with a 422 because it would leave the email in both inbox and archive.
 
 - `archive` removes inbox, adds archive. Sent messages just lose inbox (they don't carry an archive label).
-- `trash` and `spam` add the trash/junk label; the server then strips every other active label so the email has only that label. To restore, use `untrash` or `unspam`, which put it back in inbox.
+- `trash` and `spam` add the trash/junk label; the server then strips every other active label so the email has only that label, and remembers them. To restore, use `untrash` or `unspam`, which put those labels back: a sent message is in Sent again, an archived one in the archive, and custom labels return. A label deleted in the meantime is skipped, and an email with nothing left to restore lands in the inbox.
 - `move` is the general form: `--type inbox|archive|trash|junk` for system locations, or `--label-uuid <uuid>` to file under a custom label. After `move`, the target is the only active label on the email — every other label (system or custom) is removed.
 - All verbs reject drafts (the compose API owns drafts) and `spam` rejects sent messages.
 
@@ -279,7 +286,7 @@ All mutations return the updated email (same shape as `cirrux email get`), so `-
 
 `cirrux email labels add <uuid> --type auto_archive` keeps the email in the inbox and archives it 30 days later (an hourly server job does the archiving, so it can land up to an hour after the 30 days). It only works on an email that is in the inbox; anything else is rejected with a 422 `invalid_state`. Adding it while it is already on is a no-op and does **not** restart the 30 days; to restart, remove it and add it again. Archiving the email by hand drops the pending auto-archive. `auto_archive` is not a location, so `email move --type auto_archive` is rejected. For a whole thread, apply it to each email in the thread that is in the inbox (that is what the web app does). To auto-archive incoming mail, create a filter with an `auto_archive` action instead.
 
-Thread-level versions of these verbs (`cirrux thread archive`, `cirrux thread move`, etc.) are not available yet — loop over `cirrux thread get <thread-uuid> --quiet` and apply the verb per email if you need to operate on a whole thread. Snooze is the exception: `cirrux thread snooze` / `unsnooze` exist and operate on the whole conversation in one call.
+**Thread-level verbs** (`cirrux thread archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `read` / `unread` / `flag` / `unflag` / `move`, `thread labels add` / `remove`, and `thread snooze` / `unsnooze`) act on the whole conversation in one call, touching the same messages the web app would: archive and read cover every message, `flag` stars the latest one, `unread` marks the last message you received, `spam`, `move` and `labels add` apply to mail you received rather than your own sent mail, and drafts are always left alone. Prefer them over looping over `cirrux thread get --quiet` per email. Each returns the updated thread.
 
 ### Snooze and reminders
 
@@ -318,6 +325,8 @@ cirrux draft send <draft-uuid> --remind-at "+3d" --remind-if-no-reply  # set at 
 
 - **`--file` / stdin** — a full RFC 5322 MIME message (headers + blank line + body). The `From:` header must be one of the mailbox's configured addresses (or its primary address); the API rejects spoofed senders with 422.
 - **`--markdown <path>`** — a markdown file used as the draft body. Headers come from `--subject`, `--to`, `--cc`, `--bcc` (each address is repeatable, `Name <addr>` or just `addr`). The backend renders markdown to HTML via Kramdown (defaults) and, as in GFM, turns bare `http(s)://` URLs into links; it then converts to the editor's structured body format, and synthesizes the MIME — `From:` is set to the mailbox's primary address automatically. Bcc is preserved on the draft record but stripped from the rendered MIME, matching webmail compose behavior.
+
+**Tables are not supported in outgoing mail yet**, in either mode (a markdown pipe table or a `<table>` in your own MIME). A draft keeps two copies of its body: `body_html` is your HTML as written, and the structured body is what `draft send` actually sends. The structured body has no tables, so a table is flattened to its cell text run together with no spaces (`NameStatusAokBlate`), even though the draft's `body_html` still shows the `<table>`. A `text/plain` part you supply does not save it: send rebuilds the plain-text part from the structured body too. Lists and links come through fine. Until tables are supported, write tabular data as a bulleted list (one item per row, e.g. `- **Name:** value, **Status:** value`).
 
 **Attachments on outgoing mail:** there is no `--attach` flag, and markdown mode cannot carry files. The **only** way to send an attachment is to build a complete, valid MIME message yourself (a `multipart/mixed` body with each file as a base64-encoded part, `Content-Disposition: attachment`) and pass it via `--file` / stdin. When you do, the backend decodes and stores those parts, so the resulting draft sends normally. A malformed or truncated MIME will either be rejected or silently drop the part — supply well-formed MIME. The `attachment` commands below are download-only and do not add files to a draft.
 
@@ -408,6 +417,10 @@ cirrux calendar events update <calendar-uuid> <uuid>_20260909T070000Z \
   --title "Long standup"                                                      # just that occurrence
 cirrux calendar events delete <calendar-uuid> <event-uuid> --yes              # the whole event
 cirrux calendar events delete <calendar-uuid> <uuid>_20260909T070000Z --yes   # just that occurrence
+
+cirrux calendar events rsvp <calendar-uuid> <event-uuid> --status accepted    # answer an invitation
+cirrux calendar events rsvp <calendar-uuid> <uuid>_20260909T070000Z \
+  --status declined --comment "Out that week"                                 # just that occurrence
 ```
 
 **Recurring events are already expanded.** A weekly standup is stored as one row with an RRULE, but the endpoint returns one item per week in the window, so "what is on Tuesday" is answerable directly. You never have to interpret a recurrence rule; the series' RRULE is echoed on each instance as `recurrence` for reference.
@@ -428,11 +441,13 @@ The window defaults to now through 31 days out and may not exceed 366 days. `--f
 
 **Writes send email.** Creating or updating an event with `--attendee` emails those people an invitation; deleting an event or an occurrence emails the guests a cancellation. This is real mail to real addresses, exactly as if the user had done it in the calendar app. Because of that, `delete` asks for confirmation, and outside a terminal (which is where you are) it refuses unless you pass `--yes` — so confirm with the user before deleting anything with guests on it.
 
+**To answer an invitation, use `rsvp`, not `update`.** `--status` is `accepted`, `declined` or `tentative`, and `--comment` is an optional short note to the organizer. You never name your own address: the server finds the guest row the invitation was sent to among the addresses of the mailbox the calendar belongs to, alias included. The organizer is emailed the reply, so like any write this is real mail: only answer when the user asked you to. A new answer replaces the previous one whole, so leaving out `--comment` clears an earlier note. The id scopes it the same way as everywhere else: an event UUID answers the whole event (every occurrence of a series), an occurrence ID answers just that one. An event you are not a guest on fails with exit code `2` (`not_invited`), and so does one you organize (`organizer_cannot_rsvp`). Your current answer is the `status` of your own row in the event's `attendees`.
+
 **`update` only changes what you pass.** Omitted fields are left alone. Two exceptions: `--attendee` replaces the entire guest list, so resend everyone you want to keep, and `--start` / `--end` must be given together. Pass an empty string to clear a field (`--recurrence ""` stops an event repeating). Times are handed to the server as you type them: `2026-09-02T09:00` is wall-clock time resolved in `--timezone`, which defaults to the machine's own zone.
 
 **Attendee values are lower-case with underscores**, matching what the listing prints: `status` is `needs_action` / `accepted` / `declined` / `tentative`, `role` is `chair` / `req_participant` / `opt_participant` / `non_participant`, `cutype` is `individual` / `group` / `resource` / `room` / `unknown`. The iCalendar spellings (`REQ-PARTICIPANT`) are rejected with exit code `2`.
 
-**You can only write to a calendar whose `can_write` is true** — check `cirrux calendar list` first. A subscription to an external feed is read-only for everyone including its owner. If you are an attendee on an event rather than its organizer, an update changes only your own RSVP status and nothing else, and it has to target the event itself: changing or cancelling a single occurrence of a series you do not organize is refused (exit code `2`), because both reshape the series.
+**You can only write to a calendar whose `can_write` is true** — check `cirrux calendar list` first. A subscription to an external feed is read-only for everyone including its owner. On an event you are a guest on rather than its organizer, `update` and `delete` cannot change the event: editing or cancelling a single occurrence of a series you do not organize is refused (exit code `2`, `not_organizer`), because both reshape the series. Answer the invitation with `rsvp` instead.
 
 Calendar reads need the `calendar.read` OAuth scope and writes need `calendar.write`. If the CLI was logged in before those scopes existed, a calendar command fails with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
 
@@ -632,6 +647,16 @@ id=$(cirrux calendar events create "$cal" --title "Design review" \
 cirrux calendar events update "$cal" "$id" --location "Room 2"
 ```
 
+**Accept a meeting the user was invited to:**
+
+```bash
+# Find the invitation by title, then answer it. The organizer gets the reply by email.
+ev=$(cirrux calendar events list "$cal" --days 14 --json \
+  | jq -r '.data[] | select(.title == "Quarterly planning") | .id' | head -1)
+
+cirrux calendar events rsvp "$cal" "$ev" --status accepted
+```
+
 **Move one instance of a repeating meeting without touching the rest:**
 
 ```bash
@@ -797,4 +822,4 @@ cirrux thread list "$mb" --label snoozed --json | jq -r '.data[] | "\(.snooze_un
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox addresses create` / `update` / `delete` for a mailbox's addresses (aliases), `mailbox filters create` / `update` / `delete` for server-side filter rules, `email snooze` / `unsnooze` and `thread snooze` / `unsnooze` for wake-ups, `draft create` / `draft delete` / `draft send` for drafts (both `create` and `send` accept `--remind-at`), and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments, and `--suggest` on the content commands with `docs suggestions accept` / `reject` / `withdraw` for suggestions. Contact writes are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, the same verbs for whole conversations (`thread archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `read` / `unread` / `flag` / `unflag` / `move`, `thread labels add` / `remove`), `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox addresses create` / `update` / `delete` for a mailbox's addresses (aliases), `mailbox filters create` / `update` / `delete` for server-side filter rules, `email snooze` / `unsnooze` and `thread snooze` / `unsnooze` for wake-ups, `draft create` / `draft delete` / `draft send` for drafts (both `create` and `send` accept `--remind-at`), and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments, and `--suggest` on the content commands with `docs suggestions accept` / `reject` / `withdraw` for suggestions. Contact writes are not yet exposed — say so rather than fabricating commands.

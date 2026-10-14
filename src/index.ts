@@ -52,6 +52,13 @@ import {
 } from './commands/email/transitions.js'
 import { emailSnoozeCommand, emailUnsnoozeCommand } from './commands/email/snooze.js'
 import { threadSnoozeCommand, threadUnsnoozeCommand } from './commands/thread/snooze.js'
+import {
+  threadLabelsAddCommand,
+  threadLabelsRemoveCommand,
+  threadMoveCommand,
+  threadVerbCommand,
+  type ThreadVerb,
+} from './commands/thread/actions.js'
 import { collectAddress, draftCreateCommand } from './commands/draft/create.js'
 import { draftDeleteCommand } from './commands/draft/delete.js'
 import { draftSendCommand } from './commands/draft/send.js'
@@ -80,6 +87,7 @@ import { calendarEventsListCommand } from './commands/calendar/events/list.js'
 import { calendarEventsCreateCommand } from './commands/calendar/events/create.js'
 import { calendarEventsUpdateCommand } from './commands/calendar/events/update.js'
 import { calendarEventsDeleteCommand } from './commands/calendar/events/delete.js'
+import { calendarEventsRsvpCommand } from './commands/calendar/events/rsvp.js'
 import { contactsAddressbooksCommand } from './commands/contacts/addressbooks.js'
 import { contactsListCommand } from './commands/contacts/list.js'
 import { contactsGetCommand } from './commands/contacts/get.js'
@@ -456,6 +464,63 @@ Every snoozed message in the thread follows the same rules as
   )
   .action(threadUnsnoozeCommand)
 
+const threadVerbs: [ThreadVerb, string][] = [
+  ['archive', 'Archive a thread (every message in it)'],
+  ['unarchive', 'Move a thread\'s archived messages back to the inbox'],
+  ['trash', 'Move a thread to the trash (drafts are left alone)'],
+  ['untrash', 'Restore a thread from the trash to where it was'],
+  ['spam', 'Mark a thread as spam (only mail you received, never your own sent mail)'],
+  ['unspam', 'Remove a thread from spam (back to where it was)'],
+  ['read', 'Mark every message in a thread as read'],
+  ['unread', 'Mark a thread as unread (its last received message, as the app does)'],
+  ['flag', 'Star a thread (its latest message, as the app does)'],
+  ['unflag', 'Unstar every message in a thread'],
+]
+
+for (const [verb, description] of threadVerbs) {
+  thread
+    .command(verb)
+    .description(description)
+    .argument('<uuid>', 'Thread UUID')
+    .option('--json', 'Output as JSON')
+    .option('--quiet', 'Output only the thread UUID (for piping)')
+    .action(threadVerbCommand(verb))
+}
+
+thread
+  .command('move')
+  .description('Move a thread\'s received messages to a target label (system type or custom label)')
+  .argument('<uuid>', 'Thread UUID')
+  .option('--type <type>', 'System label type (inbox, archive, trash, junk)')
+  .option('--label-uuid <uuid>', 'Custom label UUID (from `cirrux mailbox labels list`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the thread UUID (for piping)')
+  .action(threadMoveCommand)
+
+const threadLabels = thread
+  .command('labels')
+  .description('Add or remove labels on a whole thread')
+
+threadLabels
+  .command('add')
+  .description('Add a label to every received message in a thread that lacks it (idempotent)')
+  .argument('<uuid>', 'Thread UUID')
+  .option('--type <type>', 'System label type (inbox, archive, trash, junk, auto_archive)')
+  .option('--label-uuid <uuid>', 'Custom label UUID (from `cirrux mailbox labels list`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the thread UUID (for piping)')
+  .action(threadLabelsAddCommand)
+
+threadLabels
+  .command('remove')
+  .description('Remove a label from every message in a thread that has it (idempotent)')
+  .argument('<uuid>', 'Thread UUID')
+  .option('--type <type>', 'System label type (inbox, archive, trash, junk, auto_archive)')
+  .option('--label-uuid <uuid>', 'Custom label UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the thread UUID (for piping)')
+  .action(threadLabelsRemoveCommand)
+
 const email = program
   .command('email')
   .description('Manage emails')
@@ -547,7 +612,7 @@ email
 
 email
   .command('untrash')
-  .description('Restore an email from the trash to the inbox')
+  .description('Restore an email from the trash to where it was')
   .argument('<uuid>', 'Email UUID')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the email UUID (for piping)')
@@ -563,7 +628,7 @@ email
 
 email
   .command('unspam')
-  .description('Remove an email from spam (back to inbox)')
+  .description('Remove an email from spam (back to where it was)')
   .argument('<uuid>', 'Email UUID')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the email UUID (for piping)')
@@ -805,6 +870,31 @@ calendarEvents
       '  $ cirrux calendar events update <calendar-uuid> <uuid>_20260909T070000Z --title "Long standup"',
   )
   .action(calendarEventsUpdateCommand)
+
+calendarEvents
+  .command('rsvp')
+  .description('Answer an invitation: accept, decline or tentatively accept')
+  .argument('<calendar-uuid>', 'Calendar UUID (from `cirrux calendar list`)')
+  .argument(
+    '<event-id>',
+    'Event UUID for the whole event, or an occurrence ID from `events list` for just that one',
+  )
+  .requiredOption('--status <status>', 'Your answer: accepted | declined | tentative')
+  .option('--comment <text>', 'A short note to the organizer, sent with your answer')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the event ID (for piping)')
+  .addHelpText(
+    'after',
+    '\nThe organizer is emailed your answer, exactly as answering in the calendar app would. A new\n' +
+      'answer replaces the previous one, so leaving out --comment clears an earlier note.\n' +
+      'An event UUID answers for the whole event (every occurrence, if it repeats); an occurrence\n' +
+      'ID answers for only that one.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux calendar events rsvp <calendar-uuid> <event-uuid> --status accepted\n' +
+      '  $ cirrux calendar events rsvp <calendar-uuid> <uuid>_20260909T070000Z --status declined \\\n' +
+      '      --comment "Out that week"',
+  )
+  .action(calendarEventsRsvpCommand)
 
 calendarEvents
   .command('delete')
