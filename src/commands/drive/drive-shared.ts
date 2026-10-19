@@ -7,6 +7,8 @@ export interface DriveFile {
   uuid: string
   folder_uuid: string | null
   name: string
+  /** The file in the Drive app, to hand to a person. */
+  url: string
   content_type: string
   file_size_bytes: number
   upload_status: string
@@ -19,6 +21,7 @@ export interface DriveFolder {
   uuid: string
   parent_uuid: string | null
   name: string
+  url: string
   color: string | null
 }
 

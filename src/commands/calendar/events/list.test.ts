@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { formatCalendarEvents, resolveWindow } from './list.js'
+import { eventsListPath, formatCalendarEvents, resolveWindow } from './list.js'
 import type { CalendarEvent, CalendarEventListResponse } from '../calendar-shared.js'
 
 function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
@@ -255,4 +255,29 @@ test('an explicit --timezone survives a plain --from/--to window', () => {
   expect(window.ok).toBe(true)
   if (!window.ok) return
   expect(window.timezone).toBe('Europe/Amsterdam')
+})
+
+test('one calendar without a query keeps the per-calendar endpoint', () => {
+  expect(eventsListPath('cal-1', { timeMin: '2026-09-01', timeMax: '2026-09-08' }, {})).toBe(
+    'public_api/v1/calendars/cal-1/events?time_min=2026-09-01&time_max=2026-09-08',
+  )
+})
+
+test('no calendar lists the agenda across every calendar', () => {
+  expect(eventsListPath(undefined, { timezone: 'Europe/Amsterdam' }, { limit: '20' })).toBe(
+    'public_api/v1/events?timezone=Europe%2FAmsterdam&limit=20',
+  )
+})
+
+test('a query searches through the agenda, narrowed to the calendar when one is given', () => {
+  expect(eventsListPath('cal-1', {}, { query: 'with:jan@example.com' })).toBe(
+    'public_api/v1/events?q=with%3Ajan%40example.com&calendar_uuids=cal-1',
+  )
+  expect(eventsListPath(undefined, {}, { query: 'standup' })).toBe('public_api/v1/events?q=standup')
+})
+
+test('formatCalendarEvents says so when a search was cut short', () => {
+  const { text } = formatCalendarEvents(response([event()], { truncated: true }))
+
+  expect(text).toContain('The query matched too many events')
 })

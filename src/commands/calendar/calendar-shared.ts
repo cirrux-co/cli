@@ -76,6 +76,8 @@ export interface CalendarEventListResponse {
   timezone: string
   has_more: boolean
   next_cursor?: string
+  /** Set by the agenda when a query matched more events than it searches. */
+  truncated?: boolean
   data: CalendarEvent[]
 }
 

@@ -149,6 +149,39 @@ function formatBound(event: CalendarEvent): string {
   return `${start} → ${end}`
 }
 
+export interface ListOptions {
+  query?: string
+  limit?: string
+  cursor?: string
+}
+
+/**
+ * Where a listing goes. One calendar without a query keeps the per-calendar
+ * endpoint; anything else is the agenda (`/v1/events`), which spans every
+ * calendar the user can see and is the only one that searches.
+ */
+export function eventsListPath(
+  calendarUuid: string | undefined,
+  window: { timeMin?: string; timeMax?: string; timezone?: string },
+  options: ListOptions,
+): string {
+  const params = new URLSearchParams()
+  if (window.timeMin) params.set('time_min', window.timeMin)
+  if (window.timeMax) params.set('time_max', window.timeMax)
+  if (window.timezone) params.set('timezone', window.timezone)
+  if (options.query) params.set('q', options.query)
+  if (calendarUuid && options.query) params.set('calendar_uuids', calendarUuid)
+  if (options.limit) params.set('limit', options.limit)
+  if (options.cursor) params.set('cursor', options.cursor)
+
+  const query = params.toString()
+  const base =
+    calendarUuid && !options.query
+      ? `public_api/v1/calendars/${encodeURIComponent(calendarUuid)}/events`
+      : 'public_api/v1/events'
+  return `${base}${query ? `?${query}` : ''}`
+}
+
 /**
  * One line per occurrence: the id first so it can be piped, then when and what.
  * `--quiet` emits just the ids.
@@ -168,6 +201,10 @@ export function formatCalendarEvents(response: CalendarEventListResponse): {
     return `${event.id}\t${formatBound(event)}\t${event.title ?? '(no title)'}${suffix}`
   })
 
+  if (response.truncated) {
+    lines.push('\n--- The query matched too many events; narrow it to see them all ---')
+  }
+
   if (response.has_more && response.next_cursor) {
     lines.push(`\n--- More results available (cursor: ${response.next_cursor}) ---`)
   }
@@ -179,8 +216,8 @@ export function formatCalendarEvents(response: CalendarEventListResponse): {
 }
 
 export async function calendarEventsListCommand(
-  calendarUuid: string,
-  options: OutputOptions & WindowOptions & { limit?: string; cursor?: string },
+  calendarUuid: string | undefined,
+  options: OutputOptions & WindowOptions & ListOptions,
 ): Promise<void> {
   requireCredentials(options)
 
@@ -190,17 +227,7 @@ export async function calendarEventsListCommand(
   }
 
   try {
-    const params = new URLSearchParams()
-    if (window.timeMin) params.set('time_min', window.timeMin)
-    if (window.timeMax) params.set('time_max', window.timeMax)
-    if (window.timezone) params.set('timezone', window.timezone)
-    if (options.limit) params.set('limit', options.limit)
-    if (options.cursor) params.set('cursor', options.cursor)
-
-    const query = params.toString()
-    const path = `public_api/v1/calendars/${encodeURIComponent(calendarUuid)}/events${query ? `?${query}` : ''}`
-
-    const response = await authedRequest<CalendarEventListResponse>(path)
+    const response = await authedRequest<CalendarEventListResponse>(eventsListPath(calendarUuid, window, options))
 
     output(response as unknown as Record<string, unknown>, {
       ...options,
@@ -209,7 +236,7 @@ export async function calendarEventsListCommand(
   } catch (error) {
     handleCalendarError(error, options, {
       action: 'List events',
-      notFound: `Calendar '${calendarUuid}' not found.`,
+      notFound: calendarUuid ? `Calendar '${calendarUuid}' not found.` : 'Calendar not found.',
     })
   }
 }

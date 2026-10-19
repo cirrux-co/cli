@@ -6,6 +6,7 @@ const folder = {
   uuid: 'f-1',
   parent_uuid: null,
   name: 'Documents',
+  url: 'https://drive.cirrux.co/folder/f-1',
   color: null,
 }
 
@@ -14,6 +15,7 @@ const file = {
   uuid: 'd-1',
   folder_uuid: null,
   name: 'notes.txt',
+  url: 'https://drive.cirrux.co/file/d-1',
   content_type: 'text/plain',
   file_size_bytes: 42,
   upload_status: 'completed',

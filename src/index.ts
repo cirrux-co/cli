@@ -62,10 +62,12 @@ import {
 import { collectAddress, draftCreateCommand } from './commands/draft/create.js'
 import { draftDeleteCommand } from './commands/draft/delete.js'
 import { draftSendCommand } from './commands/draft/send.js'
+import { draftUpdateCommand } from './commands/draft/update.js'
 import { attachmentGetCommand } from './commands/attachment/get.js'
 import { attachmentDownloadCommand } from './commands/attachment/download.js'
 import { driveListCommand } from './commands/drive/list.js'
 import { driveGetCommand } from './commands/drive/get.js'
+import { driveSearchCommand } from './commands/drive/search.js'
 import { driveDownloadCommand } from './commands/drive/download.js'
 import { driveUploadCommand } from './commands/drive/upload.js'
 import { driveReplaceCommand } from './commands/drive/replace.js'
@@ -466,7 +468,7 @@ Every snoozed message in the thread follows the same rules as
 
 const threadVerbs: [ThreadVerb, string][] = [
   ['archive', 'Archive a thread (every message in it)'],
-  ['unarchive', 'Move a thread\'s archived messages back to the inbox'],
+  ['unarchive', 'Move a thread\'s received messages back to the inbox, archived or filed under a label'],
   ['trash', 'Move a thread to the trash (drafts are left alone)'],
   ['untrash', 'Restore a thread from the trash to where it was'],
   ['spam', 'Mark a thread as spam (only mail you received, never your own sent mail)'],
@@ -717,12 +719,15 @@ draft
   .description('Create a draft from MIME (file/stdin) or markdown with structured headers')
   .requiredOption('--mailbox-uuid <uuid>', 'Mailbox the draft belongs to')
   .option('--file <path>', 'Path to a .eml file containing the MIME message (read from stdin if omitted)')
-  .option('--markdown <path>', 'Path to a markdown file used as the draft body (mutually exclusive with --file)')
-  .option('--subject <subject>', 'Subject line (markdown mode only)')
-  .option('--to <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
+  .option('--markdown <path>', 'Path to a markdown file used as the draft body, or - for stdin (mutually exclusive with --file)')
+  .option('--subject <subject>', 'Subject line (markdown mode only; a reply defaults to "Re: ...", a forward to "Fwd: ...")')
+  .option('--to <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only; a reply defaults to whoever you are replying to)', collectAddress, [])
   .option('--cc <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
   .option('--bcc <addr>', '`Name <addr>` or `addr` (repeatable, markdown mode only)', collectAddress, [])
+  .option('--from <address>', "Address to send from, one of the mailbox's addresses (markdown mode only; defaults to the address a reply's original was sent to, else the mailbox's active address)")
   .option('--in-reply-to <email-uuid>', "Link this draft as a reply to an existing email (--mailbox-uuid must be that email's mailbox)")
+  .option('--reply-all', 'Reply to everyone on the original: derive To and Cc, minus your own addresses (markdown mode only, needs --in-reply-to)')
+  .option('--forward <email-uuid>', 'Forward this email: your markdown, then the forwarded message and its attachments (markdown mode only)')
   .option(
     '--no-quote-original',
     'Do not quote the original email below your reply (markdown replies quote it by default)',
@@ -731,7 +736,56 @@ draft
   .option('--remind-if-no-reply', 'Only remind if nobody has replied by then')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the new draft UUID (for piping)')
+  .addHelpText(
+    'after',
+    `
+Examples:
+  $ cirrux draft create --mailbox-uuid <uuid> --markdown body.md --subject "Hi" --to alice@example.com
+  $ cirrux draft create --mailbox-uuid <uuid> --markdown reply.md --in-reply-to <email-uuid>
+  $ cirrux draft create --mailbox-uuid <uuid> --markdown reply.md --in-reply-to <email-uuid> --reply-all
+  $ cirrux draft create --mailbox-uuid <uuid> --markdown note.md --forward <email-uuid> --to bob@example.com
+  $ cirrux draft create --mailbox-uuid <uuid> --markdown body.md --to alice@example.com --from sales@example.com
+  $ cirrux draft create --mailbox-uuid <uuid> --file message.eml
+
+A markdown reply derives what you leave out: To (or To and Cc with --reply-all),
+the "Re:" subject, and the address to send from. Anything you pass explicitly wins.
+--forward and --in-reply-to can't be combined.
+
+Markdown drafts carry no signature. To include one, build the full MIME message
+yourself and pass it with --file or on stdin.`,
+  )
   .action(draftCreateCommand)
+
+draft
+  .command('update')
+  .description('Change the body, subject or recipients of a draft')
+  .argument('<uuid>', 'Draft UUID')
+  .option('--markdown <path>', 'Markdown file with the new body, or - for stdin (replaces what you wrote; a quoted or forwarded original stays)')
+  .option('--subject <subject>', 'New subject line')
+  .option('--to <addr>', '`Name <addr>` or `addr` (repeatable; replaces the To list)', collectAddress, [])
+  .option('--cc <addr>', '`Name <addr>` or `addr` (repeatable; replaces the Cc list)', collectAddress, [])
+  .option('--bcc <addr>', '`Name <addr>` or `addr` (repeatable; replaces the Bcc list)', collectAddress, [])
+  .option('--clear-cc', 'Remove every Cc recipient')
+  .option('--clear-bcc', 'Remove every Bcc recipient')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the draft UUID (for piping)')
+  .addHelpText(
+    'after',
+    `
+Examples:
+  $ cirrux draft update <uuid> --markdown body.md
+  $ cat body.md | cirrux draft update <uuid> --markdown -
+  $ cirrux draft update <uuid> --subject "Updated plan" --to alice@example.com --to "Bob <bob@example.com>"
+  $ cirrux draft update <uuid> --clear-cc
+
+Only what you pass changes. A recipient flag replaces that whole list, so pass
+every address you want to keep. --markdown replaces the part you wrote and keeps
+the quoted original of a reply or the forwarded message. No signature is added.
+
+A draft that is scheduled to send, or is being sent, can't be updated: cancel
+the scheduled send in the app first.`,
+  )
+  .action(draftUpdateCommand)
 
 draft
   .command('delete')
@@ -797,8 +851,11 @@ const calendarEvents = calendar
 
 calendarEvents
   .command('list')
-  .description('List events in a time window, with recurring series expanded into occurrences')
-  .argument('<calendar-uuid>', 'Calendar UUID (from `cirrux calendar list`)')
+  .description(
+    'List events in a time window, with recurring series expanded into occurrences. Without a calendar, lists every calendar',
+  )
+  .argument('[calendar-uuid]', 'Calendar UUID (from `cirrux calendar list`). Omit for all calendars')
+  .option('--query <q>', 'Search in the calendar search syntax (e.g. "with:jan@example.com", "title:standup")')
   .option('--today', "Just today, in the window's timezone (not the next 24 hours)")
   .option('--on <date>', 'Just one calendar day, as YYYY-MM-DD')
   .option('--from <date>', 'Start of the window (ISO-8601 or YYYY-MM-DD). Defaults to now')
@@ -1428,6 +1485,20 @@ drive
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only folder/file UUIDs, one per line (for piping)')
   .action(driveListCommand)
+
+drive
+  .command('search')
+  .description(
+    'Search file and folder names, with the same operators as mail search: type:pdf, owner:me, is:shared, ' +
+      'in:trash, after:/before:, larger:/smaller:, OR, -. An empty query lists a folder (or the top level)',
+  )
+  .argument('<query>', 'Search query (quote it when it has spaces)')
+  .option('--folder <uuid>', 'Search this folder and everything under it')
+  .option('--limit <n>', 'Items per page, 1-100 (default 25)')
+  .option('--cursor <cursor>', 'Pagination cursor from a previous response')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only file and folder UUIDs, one per line (for piping)')
+  .action(driveSearchCommand)
 
 drive
   .command('get')

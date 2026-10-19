@@ -103,13 +103,31 @@ cat message.eml | cirrux draft create --mailbox-uuid <mailbox-uuid>
 cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md \
   --subject "Hi" --to alice@example.com --cc bob@example.com
 
-# Reply linking (either mode; --mailbox-uuid must be the parent's mailbox), then send or delete
+# Reply (--mailbox-uuid must be the parent's mailbox). In markdown mode the server
+# derives To, the "Re:" subject and the address to send from; --reply-all adds everyone else
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown reply.md --in-reply-to <email-uuid>
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown reply.md --in-reply-to <email-uuid> --reply-all
+
+# Forward: your markdown, then the forwarded message, with the original's attachments
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown note.md --forward <email-uuid> --to bob@example.com
+
+# Send from one of the mailbox's other addresses (aliases)
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --to alice@example.com --from sales@example.com
+
+# A MIME reply links with --in-reply-to too, and carries its own headers
 cirrux draft create --mailbox-uuid <mailbox-uuid> --file reply.eml --in-reply-to <email-uuid>
+
+# Change a draft in place: only what you pass changes, and a recipient flag replaces that list
+cirrux draft update <draft-uuid> --markdown body.md --subject "Updated plan"
+cirrux draft update <draft-uuid> --to alice@example.com --clear-cc
+
 cirrux draft send <draft-uuid>
 cirrux draft delete <draft-uuid>
 ```
 
-Tables are not supported in outgoing mail yet, in markdown or MIME mode. The draft's `body_html` still shows the table, but `draft send` sends the structured body, which flattens a table into its cell text run together on one line. Write tabular data as a list instead.
+Anything you pass explicitly (`--to`, `--cc`, `--subject`, `--from`) wins over what the server derives. `--reply-all`, `--forward` and `--from` only work with `--markdown`, and `--forward` can't be combined with `--in-reply-to`. Markdown drafts carry no signature; to include one, build the MIME message yourself and pass it with `--file` or on stdin.
+
+`draft update` keeps the quoted original of a reply or the forwarded message when you replace the body with `--markdown` (a path, or `-` for stdin), and adds no signature. A draft that is scheduled to send can't be updated; cancel the scheduled send in the app first.
 
 `draft send` needs the `email.send` OAuth scope (separate from `email.write`); if you logged in before send existed, run `cirrux logout && cirrux login` to re-grant.
 
@@ -125,7 +143,7 @@ cirrux thread list <mailbox-uuid> --label snoozed
 
 The same `--remind-at` / `--remind-if-no-reply` pair works on `draft create` and `draft send`, so you can send a message and have it come back to you if nobody answers. A reminder set at create time stays inert until the message is actually sent.
 
-**Attachments on outgoing mail:** there is no `--attach` flag, and markdown mode cannot carry files. The only way to send an attachment is to build a complete, valid MIME message yourself — a `multipart/mixed` body with each file as a base64-encoded part marked `Content-Disposition: attachment` — and pass it via `--file` or stdin. The backend then decodes and stores those parts, so the draft sends normally. Supply well-formed MIME; a malformed or truncated message may be rejected or drop the part. The `cirrux attachment` commands are download-only and do not add files to a draft.
+**Attachments on outgoing mail:** there is no `--attach` flag, and markdown mode cannot carry files of your own (a `--forward` copies the original's attachments, nothing more). The only way to send any other attachment is to build a complete, valid MIME message yourself (a `multipart/mixed` body with each file as a base64-encoded part marked `Content-Disposition: attachment`) and pass it via `--file` or stdin. The backend then decodes and stores those parts, so the draft sends normally. Supply well-formed MIME; a malformed or truncated message may be rejected or drop the part. The `cirrux attachment` commands are download-only and do not add files to a draft.
 
 ### Drive
 
@@ -133,6 +151,10 @@ The same `--remind-at` / `--remind-if-no-reply` pair works on `draft create` and
 # List the root, then list a folder
 cirrux drive list
 cirrux drive list <folder-uuid>
+
+# Find files and folders by name (same operators as mail search, plus type:, owner:, is:shared)
+cirrux drive search "acme contract"
+cirrux drive search "invoice type:pdf after:2026-01-01" --folder <folder-uuid>
 
 # File metadata
 cirrux drive get <file-uuid>
@@ -161,6 +183,8 @@ cirrux drive share revoke <file-uuid>
 
 # Calendars (recurring series come back already expanded)
 cirrux calendar list
+cirrux calendar events list --today                              # every calendar
+cirrux calendar events list --query "with:jan@example.com"       # search every calendar
 cirrux calendar events list <calendar-uuid> --today
 cirrux calendar events list <calendar-uuid> --on 2026-09-02
 cirrux calendar events list <calendar-uuid> --from 2026-09-01 --to 2026-09-08
@@ -215,11 +239,13 @@ cirrux docs share create <document-uuid>
 | `cirrux email read <email-uuid>` / `cirrux email unread <email-uuid>` | Mark an email as read or unread                                                                      |
 | `cirrux email flag <email-uuid>` / `cirrux email unflag <email-uuid>` | Flag (star) or unflag an email                                                                       |
 | `cirrux email snooze <email-uuid> --until <when>`                     | Snooze an email until later (`--if-no-reply`); `cirrux email unsnooze` cancels                       |
-| `cirrux draft create --mailbox-uuid <uuid>`                           | Create a draft from a MIME message (`--file`/stdin) or markdown (`--markdown` + headers); `--in-reply-to` links a reply |
+| `cirrux draft create --mailbox-uuid <uuid>`                           | Create a draft from a MIME message (`--file`/stdin) or markdown (`--markdown` + headers); `--in-reply-to` links a reply, `--reply-all`, `--forward`, `--from` |
+| `cirrux draft update <draft-uuid>`                                    | Change a draft's body (`--markdown`), subject or recipients; `--clear-cc`/`--clear-bcc` empty a list |
 | `cirrux draft send <draft-uuid>`                                      | Send a draft immediately (needs the `email.send` scope); `--remind-at <when>` sets a follow-up reminder |
 | `cirrux draft delete <draft-uuid>`                                    | Delete a draft                                                                                       |
 | `cirrux attachment get <attachment-uuid>`                             | Attachment metadata                                                                                  |
 | `cirrux attachment download <attachment-uuid>`                        | Raw bytes to stdout (use `--json` for base64url)                                                     |
+| `cirrux drive search <query>`                                         | Find files and folders by name, each with where it sits and its link (`--folder`, `--limit`, `--cursor`) |
 | `cirrux drive list [folder-uuid]`                                     | List folders and files in a folder (omit for the root)                                               |
 | `cirrux drive get <file-uuid>`                                        | File metadata                                                                                        |
 | `cirrux drive download <file-uuid>`                                   | Decrypt locally; raw bytes to stdout (`--output <path>` to stream to a file, `--json` for base64url) |
@@ -231,7 +257,7 @@ cirrux docs share create <document-uuid>
 | `cirrux drive share get <uuid> [--folder]`                            | Show sharing settings (grants + public link) for a file or folder                                    |
 | `cirrux drive share revoke <uuid> [--folder]`                         | Revoke the public link for a file or folder                                                          |
 | `cirrux calendar list`                                                | List calendars you can see (needs the `calendar.read` scope)                                         |
-| `cirrux calendar events list <calendar-uuid>`                         | Events in a window, recurring series already expanded (`--today`, `--on`, `--from`/`--to`, `--days`) |
+| `cirrux calendar events list [calendar-uuid]`                         | Events in a window across every calendar, or one; recurring series expanded (`--query`, `--today`, `--on`, `--from`/`--to`, `--days`) |
 | `cirrux calendar events create <calendar-uuid>`                       | Create an event (`--title`, `--start`, `--end`, `--all-day`, `--recurrence`, `--attendee`)           |
 | `cirrux calendar events update <calendar-uuid> <event-id>`            | Change an event, or one occurrence when given an occurrence ID from `events list`                    |
 | `cirrux calendar events delete <calendar-uuid> <event-id>`            | Delete an event, or cancel one occurrence. Emails guests a cancellation, so confirms unless `--yes`  |
