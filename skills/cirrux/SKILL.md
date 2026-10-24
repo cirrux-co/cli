@@ -1,6 +1,6 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (find by name, get a link, list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events, accept or decline an invitation), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, create or revoke its public link, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (find by name, get a link, list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events, accept or decline an invitation), task lists (list, create, rename and delete the Reminders-style lists a user has), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, create or revoke its public link, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
@@ -497,6 +497,30 @@ The window defaults to now through 31 days out and may not exceed 366 days. `--f
 
 Calendar reads need the `calendar.read` OAuth scope and writes need `calendar.write`. If the CLI was logged in before those scopes existed, a calendar command fails with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
 
+Task lists (such as "Reminders") are not calendars and never appear in `cirrux calendar list`; see Tasks below.
+
+### Tasks
+
+```bash
+cirrux tasks lists list                                        # task lists the user can see (uuid, name, mailbox, role)
+cirrux tasks lists create --name "Groceries"                   # in the user's own mailbox, a palette color
+cirrux tasks lists create --name "Side project" --color "#4cb782" --mailbox-uuid <uuid>
+cirrux tasks lists update <task-list-uuid> --name "Errands"    # rename; --color changes the color
+cirrux tasks lists delete <task-list-uuid> --yes               # the list AND every task on it
+```
+
+**A task list is where tasks live**, like a calendar for events. Every mailbox comes with one called "Reminders", and CalDAV apps such as Apple Reminders can add more. The listing prints `task_list_uuid` first, which is the id every task command will take, then the name, the mailbox address and your role. A user with several mailboxes has several lists called "Reminders"; the address tells them apart. A list shared into a mailbox is named after its owner ("Chores from jan") and is read-only when its role is `viewer`.
+
+**A new list goes in a mailbox the user owns**: their own one in the workspace unless `--mailbox-uuid` names another of theirs. A mailbox they only reach as a member (a shared `info@`, one they are a delegate on) is not found (exit code `3`).
+
+**Name and color belong to a mailbox.** `update` changes them in one mailbox. When a list is in more than one of the user's mailboxes, it fails with exit code `2` (`mailbox_uuid_required`) until `--mailbox-uuid` says which. Only what you pass changes.
+
+**Deleting a list deletes every task on it, for everyone it is shared with**, so only do it when the user asked for that list to go. Only its owner can delete it (exit code `2`, `not_owner`). A calendar that holds events as well as tasks is refused (`holds_events`), because deleting it would delete those events too. `delete` confirms first unless `--yes` is passed.
+
+**The tasks on a list cannot be read or changed yet**, so say so rather than fabricating commands for them.
+
+Tasks are a separate grant from calendars: reading needs the `tasks.read` OAuth scope and changing needs `tasks.write`, and calendar access reaches neither. A session logged in before those scopes existed fails with exit code `4` and a hint: run `cirrux logout && cirrux login` to re-grant.
+
 ### Contacts
 
 ```bash
@@ -590,9 +614,9 @@ With `--json` you get `revision`, `markdown` and `threads` (each with `uuid`, `k
 - An image by URL is not fetched: download it first, then attach the file.
 
 **What markdown a document holds.** `insert`, `write`, `edit` and a `replace`'s `with` take markdown, but a document only holds some of it. Anything else is accepted without an error and quietly flattened, so check your markdown against this list before you send it:
-- **Supported:** paragraphs, headings `#` to `######`, bullet and numbered lists (nested too), `>` quotes, `---` horizontal rules, `**bold**`, `*italic*`, `<u>underline</u>`, `~~strikethrough~~`, `` `inline code` ``, `[links](https://…)`, text color as `<span data-color="red">red</span>` and a highlight as `<mark data-color="yellow">marked</mark>` (the colors are gray, red, orange, yellow, green, teal, blue, purple and pink; any other is dropped, and `docs read` shows a document's colors the same way, so keep them when you rewrite colored text), and line breaks inside a paragraph or item, written as a backslash or two spaces at the end of the line (or `<br>`).
-- **Not supported, and what becomes of it:** a **table** stays as its text, pipes and all, in one paragraph; a **fenced code block** becomes its lines as inline code, and its language is dropped; a **task list** becomes plain bullets, and the checkboxes and their checked state are lost; an **image by URL** becomes a link to it (only an `attachment:<uuid>` of this document stays an attachment: add pictures with `docs attach`); a **link** that is not `http`, `https`, `mailto`, `tel` or relative (`javascript:`, `data:`, another document's `attachment:`) keeps its words and loses the link; **raw HTML** other than the tags above becomes its text; footnotes and definition lists are not markdown here at all.
-- **Write those another way:** a table as a list (one item per row, `**Label:** value`) or as short paragraphs; code as inline code, a line each; a checklist as a plain list, saying in words what is done. If the user asked for a table or a checklist, say that Docs cannot hold one yet rather than leave a mangled one behind.
+- **Supported:** paragraphs, headings `#` to `######`, bullet and numbered lists (nested too), checklists as GitHub task lists (`- [ ] open`, `- [x] done`), `>` quotes, `---` horizontal rules, `**bold**`, `*italic*`, `<u>underline</u>`, `~~strikethrough~~`, `` `inline code` ``, `[links](https://…)`, text color as `<span data-color="red">red</span>` and a highlight as `<mark data-color="yellow">marked</mark>` (the colors are gray, red, orange, yellow, green, teal, blue, purple and pink; any other is dropped, and `docs read` shows a document's colors the same way, so keep them when you rewrite colored text), and line breaks inside a paragraph or item, written as a backslash or two spaces at the end of the line (or `<br>`).
+- **Not supported, and what becomes of it:** a **table** stays as its text, pipes and all, in one paragraph; a **fenced code block** becomes its lines as inline code, and its language is dropped; an **image by URL** becomes a link to it (only an `attachment:<uuid>` of this document stays an attachment: add pictures with `docs attach`); a **link** that is not `http`, `https`, `mailto`, `tel` or relative (`javascript:`, `data:`, another document's `attachment:`) keeps its words and loses the link; **raw HTML** other than the tags above becomes its text; footnotes and definition lists are not markdown here at all.
+- **Write those another way:** a table as a list (one item per row, `**Label:** value`) or as short paragraphs; code as inline code, a line each. If the user asked for a table, say that Docs cannot hold one yet rather than leave a mangled one behind.
 
 **Suggest with `--suggest`** on `replace`, `insert`, `delete-text` and `edit` (the commenter role is enough). The change is not made: it shows in the editor as a suggestion, with a card people accept or reject. **Prefer suggesting over editing when the user asked you to review, propose, improve or tighten a document someone else will read, or when you only have the commenter role**; edit outright when the user asked you to make the change, or the document is theirs alone to write.
 - What it would take out stays, marked for removal, and what it brings in is added, marked. Quotes, `--occurrence`, `--before`, `--after` and `--base-revision` work as for an edit.

@@ -195,6 +195,12 @@ cirrux calendar events update <calendar-uuid> <uuid>_20260909T070000Z --title "L
 cirrux calendar events delete <calendar-uuid> <event-uuid> --yes
 cirrux calendar events rsvp <calendar-uuid> <event-uuid> --status accepted
 
+# Task lists (where tasks live; tasks themselves are not reachable yet)
+cirrux tasks lists list
+cirrux tasks lists create --name "Groceries"
+cirrux tasks lists update <task-list-uuid> --name "Errands"
+cirrux tasks lists delete <task-list-uuid> --yes
+
 # Contacts (read-only; a contact lives in an addressbook)
 cirrux contacts addressbooks
 cirrux contacts list <addressbook-uuid>
@@ -262,6 +268,10 @@ cirrux docs share create <document-uuid>
 | `cirrux calendar events update <calendar-uuid> <event-id>`            | Change an event, or one occurrence when given an occurrence ID from `events list`                    |
 | `cirrux calendar events delete <calendar-uuid> <event-id>`            | Delete an event, or cancel one occurrence. Emails guests a cancellation, so confirms unless `--yes`  |
 | `cirrux calendar events rsvp <calendar-uuid> <event-id>`              | Answer an invitation (`--status accepted\|declined\|tentative`, `--comment`). Emails the organizer   |
+| `cirrux tasks lists list`                                             | List the task lists you can see, such as "Reminders" (needs the `tasks.read` scope)                  |
+| `cirrux tasks lists create`                                           | Create a task list (`--name`, `--color`, `--mailbox-uuid`; needs the `tasks.write` scope)            |
+| `cirrux tasks lists update <task-list-uuid>`                          | Rename a task list or change its color (`--name`, `--color`, `--mailbox-uuid`)                       |
+| `cirrux tasks lists delete <task-list-uuid>`                          | Delete a task list and every task on it (owner only). Confirms unless `--yes`                        |
 | `cirrux contacts addressbooks`                                        | List your addressbooks (needs the `contacts.read` scope)                                             |
 | `cirrux contacts list <addressbook-uuid>`                             | List the contacts in one addressbook (`--limit`, `--cursor`)                                         |
 | `cirrux contacts search <query>`                                      | Substring search over contact names, company and email addresses (`--addressbook-uuid`)              |

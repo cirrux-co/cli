@@ -90,6 +90,12 @@ import { calendarEventsCreateCommand } from './commands/calendar/events/create.j
 import { calendarEventsUpdateCommand } from './commands/calendar/events/update.js'
 import { calendarEventsDeleteCommand } from './commands/calendar/events/delete.js'
 import { calendarEventsRsvpCommand } from './commands/calendar/events/rsvp.js'
+import { tasksListsListCommand } from './commands/tasks/lists/list.js'
+import {
+  tasksListsCreateCommand,
+  tasksListsDeleteCommand,
+  tasksListsUpdateCommand,
+} from './commands/tasks/lists/write.js'
 import { contactsAddressbooksCommand } from './commands/contacts/addressbooks.js'
 import { contactsListCommand } from './commands/contacts/list.js'
 import { contactsGetCommand } from './commands/contacts/get.js'
@@ -973,6 +979,59 @@ calendarEvents
   )
   .action(calendarEventsDeleteCommand)
 
+const tasks = program
+  .command('tasks')
+  .description('Read and manage task lists and the tasks on them')
+
+const tasksLists = tasks
+  .command('lists')
+  .description('Task lists: where tasks live, one or more per mailbox')
+
+tasksLists
+  .command('list')
+  .description('List the task lists the user can see')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only task list UUIDs, one per line (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux tasks lists list')
+  .action(tasksListsListCommand)
+
+tasksLists
+  .command('create')
+  .description('Create a task list in one of your own mailboxes')
+  .requiredOption('--name <name>', 'Task list name')
+  .option('--color <hex>', 'A #RRGGBB color (default: one from the palette)')
+  .option('--mailbox-uuid <uuid>', 'Mailbox to put it in (default: your own mailbox in this workspace)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new task list UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux tasks lists create --name "Groceries" --color "#4cb782"')
+  .action(tasksListsCreateCommand)
+
+tasksLists
+  .command('update')
+  .description("Rename a task list or change its color, in one of your mailboxes")
+  .argument('<task-list-uuid>', 'Task list UUID (from `cirrux tasks lists list`)')
+  .option('--name <name>', 'New name')
+  .option('--color <hex>', 'New #RRGGBB color')
+  .option('--mailbox-uuid <uuid>', 'Which mailbox, when the list is in more than one of yours')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the task list UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux tasks lists update <task-list-uuid> --name "Errands"')
+  .action(tasksListsUpdateCommand)
+
+tasksLists
+  .command('delete')
+  .description('Delete a task list and every task on it (owner only)')
+  .argument('<task-list-uuid>', 'Task list UUID (from `cirrux tasks lists list`)')
+  .option('--yes', 'Skip the confirmation prompt (required when not running in a terminal)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted task list UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nThe tasks on it are deleted for everyone it is shared with, so this confirms first unless --yes is passed.\n' +
+      '\nExample:\n  $ cirrux tasks lists delete <task-list-uuid> --yes',
+  )
+  .action(tasksListsDeleteCommand)
+
 const contacts = program
   .command('contacts')
   .description('Browse and look up contacts')
@@ -1091,16 +1150,16 @@ const EDIT_HELP =
   'Say why with --comment; it is the first message on the suggestion.'
 
 const MARKDOWN_HELP =
-  '\nA document holds paragraphs, headings, bullet and numbered lists (nested), quotes, horizontal rules,\n' +
-  'bold, italic, <u>underline</u>, ~~strikethrough~~, `inline code`, links and line breaks (end the line\n' +
-  'with a backslash or two spaces), and its attachments: ![name](attachment:<uuid>) alone on a line.\n' +
+  '\nA document holds paragraphs, headings, bullet and numbered lists (nested), checklists as task lists\n' +
+  '(- [ ] open, - [x] done), quotes, horizontal rules, bold, italic, <u>underline</u>, ~~strikethrough~~,\n' +
+  '`inline code`, links and line breaks (end the line with a backslash or two spaces), and its\n' +
+  'attachments: ![name](attachment:<uuid>) alone on a line.\n' +
   'Text color and highlight are <span data-color="red">red</span> and <mark data-color="yellow">marked</mark>,\n' +
   'in gray, red, orange, yellow, green, teal, blue, purple or pink; any other color is dropped.\n' +
-  'It has no tables, code blocks or task lists, and no images from elsewhere: a table stays as its text,\n' +
-  'pipes and all, in one paragraph; a code block becomes lines of inline code without its language; a\n' +
-  'task list becomes plain bullets without its checkboxes; an image by URL becomes a link to it. Write\n' +
-  'those another way: a table as a list, a code block as inline code per line, an image with\n' +
-  "'cirrux docs attach'."
+  'It has no tables or code blocks, and no images from elsewhere: a table stays as its text, pipes and\n' +
+  'all, in one paragraph; a code block becomes lines of inline code without its language; an image by\n' +
+  'URL becomes a link to it. Write those another way: a table as a list, a code block as inline code\n' +
+  "per line, an image with 'cirrux docs attach'."
 
 const SUGGEST_OPTION = 'Suggest the change instead of making it (commenter role is enough)'
 const COMMENT_OPTION = 'With --suggest: why, as markdown, the first message on the suggestion'
