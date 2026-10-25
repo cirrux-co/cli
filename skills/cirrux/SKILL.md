@@ -1,6 +1,6 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (find by name, get a link, list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events, accept or decline an invitation), task lists (list, create, rename and delete the Reminders-style lists a user has), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, create or revoke its public link, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (find by name, get a link, list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events, accept or decline an invitation), tasks (read the to-dos on a user's task lists, such as Reminders, and list, create, rename and delete those lists), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, create or revoke its public link, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
@@ -502,6 +502,9 @@ Task lists (such as "Reminders") are not calendars and never appear in `cirrux c
 ### Tasks
 
 ```bash
+cirrux tasks list                                              # open tasks on every list, earliest due first
+cirrux tasks list --due-before 2026-11-02                      # due before that day (in the user's timezone)
+cirrux tasks list --list <task-list-uuid> --status all         # one list, done and cancelled included
 cirrux tasks lists list                                        # task lists the user can see (uuid, name, mailbox, role)
 cirrux tasks lists create --name "Groceries"                   # in the user's own mailbox, a palette color
 cirrux tasks lists create --name "Side project" --color "#4cb782" --mailbox-uuid <uuid>
@@ -517,7 +520,9 @@ cirrux tasks lists delete <task-list-uuid> --yes               # the list AND ev
 
 **Deleting a list deletes every task on it, for everyone it is shared with**, so only do it when the user asked for that list to go. Only its owner can delete it (exit code `2`, `not_owner`). A calendar that holds events as well as tasks is refused (`holds_events`), because deleting it would delete those events too. `delete` confirms first unless `--yes` is passed.
 
-**The tasks on a list cannot be read or changed yet**, so say so rather than fabricating commands for them.
+**Reading tasks.** `tasks list` shows open tasks (not done yet, including in progress) on every list by default, earliest due first and undated last, one line each: the task uuid, a checkbox (`[ ]` open, `[~]` in progress, `[x]` done, `[-]` cancelled), the title, when it is due and the list's name. `--status completed` or `all` shows finished ones. `--due-before` is exclusive and takes a date (midnight in the user's timezone, or `--timezone`) or a time: for "what is due this week", pass next Monday. Undated tasks are never due before anything. A due time is printed in UTC. A repeating task is listed once, marked `repeats`. `--json` adds `notes` and `completed_at`. It pages at 50 by default: follow `next_cursor` with `--cursor`.
+
+**Tasks cannot be created, changed, completed or deleted yet**, so say so rather than fabricating commands for them.
 
 Tasks are a separate grant from calendars: reading needs the `tasks.read` OAuth scope and changing needs `tasks.write`, and calendar access reaches neither. A session logged in before those scopes existed fails with exit code `4` and a hint: run `cirrux logout && cirrux login` to re-grant.
 

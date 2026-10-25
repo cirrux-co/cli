@@ -24,6 +24,34 @@ export interface TaskListListResponse {
   data: TaskList[]
 }
 
+/** Exactly one of `date` (an all-day due date) and `date_time` (a UTC instant) is present. */
+export interface TaskDue {
+  date?: string
+  date_time?: string
+}
+
+export interface Task {
+  object: string
+  uuid: string
+  task_list_uuid: string
+  title: string
+  notes: string | null
+  status: 'needs_action' | 'in_process' | 'completed' | 'cancelled'
+  due: TaskDue | null
+  completed_at: string | null
+  recurring: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskListResponse {
+  object: string
+  url: string
+  has_more: boolean
+  next_cursor?: string
+  data: Task[]
+}
+
 export { requireCredentials } from '../../session.js'
 
 export const TASKS_ERROR_RULES: ApiErrorRule[] = [

@@ -90,6 +90,7 @@ import { calendarEventsCreateCommand } from './commands/calendar/events/create.j
 import { calendarEventsUpdateCommand } from './commands/calendar/events/update.js'
 import { calendarEventsDeleteCommand } from './commands/calendar/events/delete.js'
 import { calendarEventsRsvpCommand } from './commands/calendar/events/rsvp.js'
+import { tasksListCommand } from './commands/tasks/list.js'
 import { tasksListsListCommand } from './commands/tasks/lists/list.js'
 import {
   tasksListsCreateCommand,
@@ -982,6 +983,26 @@ calendarEvents
 const tasks = program
   .command('tasks')
   .description('Read and manage task lists and the tasks on them')
+
+tasks
+  .command('list')
+  .description('List tasks, earliest due first, on every task list or one')
+  .option('--list <task-list-uuid>', 'Only this task list (from `cirrux tasks lists list`)')
+  .option('--status <status>', 'open (default), completed, or all')
+  .option('--due-before <date-or-time>', 'Only tasks due before this (YYYY-MM-DD, or an ISO-8601 time)')
+  .option('--timezone <iana>', "Timezone for a date --due-before (default: the user's own)")
+  .option('--limit <n>', 'Tasks per page, 1-100 (default 50)')
+  .option('--cursor <cursor>', 'Pagination cursor from a previous response')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only task UUIDs, one per line (for piping)')
+  .addHelpText(
+    'after',
+    '\nExamples:\n' +
+      '  $ cirrux tasks list\n' +
+      '  $ cirrux tasks list --due-before 2026-11-02\n' +
+      '  $ cirrux tasks list --list <task-list-uuid> --status all',
+  )
+  .action(tasksListCommand)
 
 const tasksLists = tasks
   .command('lists')
