@@ -42,6 +42,8 @@ Go beyond 0/1. Use the shared constants from `src/exit-codes.ts`:
 | 5    | `CONFLICT`         | Resource already exists        |
 | 6    | `RATE_LIMITED`     | Rate limited, retries exhausted |
 
+That includes the failures Commander raises before a command runs (a missing required option, an unknown option or command): `program.exitOverride` maps them to `USAGE_ERROR` through `commanderExitCode`, where Commander alone would exit 1. Set on the program before any subcommand is added, it reaches every command.
+
 ## 4. Non-interactive by default
 
 - Never prompt for input in non-TTY environments. Detect `process.stdout.isTTY` and fail with a clear message instead.

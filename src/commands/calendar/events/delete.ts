@@ -1,7 +1,6 @@
 import { authedRequestVoid } from '../../../api.js'
-import { confirm } from '../../../confirm.js'
-import { ExitCode } from '../../../exit-codes.js'
-import { output, outputError, type OutputOptions } from '../../../output.js'
+import { confirmDeleteOrExit } from '../../../confirm.js'
+import { output, type OutputOptions } from '../../../output.js'
 import { handleCalendarError, requireCredentials } from '../calendar-shared.js'
 
 /**
@@ -22,14 +21,7 @@ export async function calendarEventsDeleteCommand(
       ? `occurrence ${eventId}`
       : `event ${eventId} (every occurrence, if it repeats)`
 
-    if (!(await confirm(`Delete ${what}? Guests will be emailed a cancellation.`))) {
-      outputError('Cancelled.', {
-        ...options,
-        code: ExitCode.USAGE_ERROR,
-        errorType: 'not_confirmed',
-        hint: 'Pass --yes to delete without confirming.',
-      })
-    }
+    await confirmDeleteOrExit(`Delete ${what}? Guests will be emailed a cancellation.`, options)
   }
 
   try {

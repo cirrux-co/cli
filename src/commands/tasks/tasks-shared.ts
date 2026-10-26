@@ -56,6 +56,18 @@ export { requireCredentials } from '../../session.js'
 
 export const TASKS_ERROR_RULES: ApiErrorRule[] = [
   {
+    errorCode: 'not_authorized',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'you have read-only access to this task list.',
+    hint: "Run 'cirrux tasks lists list' to see which lists have can_write set.",
+  },
+  {
+    errorCode: 'recurring_task',
+    exitCode: ExitCode.USAGE_ERROR,
+    reason: 'this task repeats, and only its title and notes can be changed here.',
+    hint: 'Complete or delete it in a reminders app.',
+  },
+  {
     errorCode: 'not_owner',
     exitCode: ExitCode.USAGE_ERROR,
     reason: 'only the owner of this task list can delete it.',

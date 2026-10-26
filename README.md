@@ -195,9 +195,11 @@ cirrux calendar events update <calendar-uuid> <uuid>_20260909T070000Z --title "L
 cirrux calendar events delete <calendar-uuid> <event-uuid> --yes
 cirrux calendar events rsvp <calendar-uuid> <event-uuid> --status accepted
 
-# Tasks (read-only for now) and the task lists they live on
+# Tasks and the task lists they live on
 cirrux tasks list
 cirrux tasks list --due-before 2026-11-02
+cirrux tasks create --list <task-list-uuid> --title "Pay rent" --due 2026-11-01
+cirrux tasks complete <task-uuid>
 cirrux tasks lists list
 cirrux tasks lists create --name "Groceries"
 cirrux tasks lists update <task-list-uuid> --name "Errands"
@@ -271,6 +273,10 @@ cirrux docs share create <document-uuid>
 | `cirrux calendar events delete <calendar-uuid> <event-id>`            | Delete an event, or cancel one occurrence. Emails guests a cancellation, so confirms unless `--yes`  |
 | `cirrux calendar events rsvp <calendar-uuid> <event-id>`              | Answer an invitation (`--status accepted\|declined\|tentative`, `--comment`). Emails the organizer   |
 | `cirrux tasks list`                                                   | Tasks on every list or one, earliest due first (`--list`, `--status`, `--due-before`, `--cursor`)    |
+| `cirrux tasks create`                                                 | Add a task (`--list`, `--title`, `--notes`, `--due`, `--timezone`; needs the `tasks.write` scope)    |
+| `cirrux tasks update <task-uuid>`                                     | Change a task (`--title`, `--notes`, `--due`, `--no-due`)                                            |
+| `cirrux tasks complete\|reopen <task-uuid>`                           | Mark a task done, or open again                                                                      |
+| `cirrux tasks delete <task-uuid>`                                     | Delete a task                                                                                        |
 | `cirrux tasks lists list`                                             | List the task lists you can see, such as "Reminders" (needs the `tasks.read` scope)                  |
 | `cirrux tasks lists create`                                           | Create a task list (`--name`, `--color`, `--mailbox-uuid`; needs the `tasks.write` scope)            |
 | `cirrux tasks lists update <task-list-uuid>`                          | Rename a task list or change its color (`--name`, `--color`, `--mailbox-uuid`)                       |

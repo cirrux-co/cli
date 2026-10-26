@@ -1,5 +1,5 @@
 import { authedRequest, authedRequestVoid } from '../../../api.js'
-import { confirm } from '../../../confirm.js'
+import { confirmDeleteOrExit } from '../../../confirm.js'
 import { ExitCode } from '../../../exit-codes.js'
 import { output, outputError, type OutputOptions } from '../../../output.js'
 import { handleTasksError, requireCredentials, type TaskList } from '../tasks-shared.js'
@@ -100,14 +100,7 @@ export async function tasksListsDeleteCommand(
 ): Promise<void> {
   requireCredentials(options)
 
-  if (!options.yes && !(await confirm(`Delete task list ${taskListUuid} and every task on it?`))) {
-    outputError('Cancelled.', {
-      ...options,
-      code: ExitCode.USAGE_ERROR,
-      errorType: 'not_confirmed',
-      hint: 'Pass --yes to delete without confirming.',
-    })
-  }
+  if (!options.yes) await confirmDeleteOrExit(`Delete task list ${taskListUuid} and every task on it?`, options)
 
   try {
     await authedRequestVoid(`public_api/v1/task_lists/${encodeURIComponent(taskListUuid)}`, { method: 'DELETE' })

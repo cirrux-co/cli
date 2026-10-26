@@ -4,6 +4,7 @@ import {
   handleTasksError,
   requireCredentials,
   type Task,
+  type TaskList,
   type TaskListListResponse,
   type TaskListResponse,
 } from './tasks-shared.js'
@@ -34,11 +35,41 @@ export function tasksListPath(options: Omit<TasksListOptions, keyof OutputOption
   return query ? `${base}?${query}` : base
 }
 
+/**
+ * What to call each task list on a task's line: its name, and its mailbox too when another list has
+ * the same name, which every mailbox's "Reminders" does. A list linked into several mailboxes is
+ * named by the first.
+ */
+export function taskListLabels(lists: TaskList[]): Map<string, string> {
+  const first = new Map<string, TaskList>()
+  for (const list of lists) if (!first.has(list.task_list_uuid)) first.set(list.task_list_uuid, list)
+
+  const nameCounts = new Map<string, number>()
+  for (const list of first.values()) nameCounts.set(list.name, (nameCounts.get(list.name) ?? 0) + 1)
+
+  return new Map(
+    [...first.values()].map((list) => {
+      const shared = (nameCounts.get(list.name) ?? 0) > 1 && list.mailbox_address
+      return [list.task_list_uuid, shared ? `${list.name}, ${list.mailbox_address}` : list.name]
+    }),
+  )
+}
+
 const STATUS_MARKS: Record<Task['status'], string> = {
   needs_action: '[ ]',
   in_process: '[~]',
   completed: '[x]',
   cancelled: '[-]',
+}
+
+/** One task as the CLI prints it everywhere: uuid, checkbox, title, when it is due, and its list. */
+export function formatTaskLine(task: Task, listName?: string): string {
+  const due = task.due?.date ?? task.due?.date_time
+  const markers = [due ? `due ${due}` : null, task.recurring ? 'repeats' : null].filter(Boolean).join(', ')
+
+  return [task.uuid, `${STATUS_MARKS[task.status]} ${task.title}`, markers || null, listName ? `(${listName})` : null]
+    .filter(Boolean)
+    .join('\t')
 }
 
 /**
@@ -49,15 +80,7 @@ export function formatTaskList(
   response: TaskListResponse,
   listNames: Map<string, string>,
 ): { text: string; quietValue: string } {
-  const lines = response.data.map((task) => {
-    const due = task.due?.date ?? task.due?.date_time
-    const markers = [due ? `due ${due}` : null, task.recurring ? 'repeats' : null].filter(Boolean).join(', ')
-    const list = listNames.get(task.task_list_uuid)
-
-    return [task.uuid, `${STATUS_MARKS[task.status]} ${task.title}`, markers || null, list ? `(${list})` : null]
-      .filter(Boolean)
-      .join('\t')
-  })
+  const lines = response.data.map((task) => formatTaskLine(task, listNames.get(task.task_list_uuid)))
 
   if (response.has_more && response.next_cursor) {
     lines.push(`\n--- More results available (cursor: ${response.next_cursor}) ---`)
@@ -77,7 +100,7 @@ export async function tasksListCommand(options: TasksListOptions): Promise<void>
       authedRequest<TaskListResponse>(tasksListPath(options)),
       authedRequest<TaskListListResponse>('public_api/v1/task_lists'),
     ])
-    const listNames = new Map(lists.data.map((list) => [list.task_list_uuid, list.name]))
+    const listNames = taskListLabels(lists.data)
 
     output(response as unknown as Record<string, unknown>, {
       ...options,

@@ -91,6 +91,13 @@ import { calendarEventsUpdateCommand } from './commands/calendar/events/update.j
 import { calendarEventsDeleteCommand } from './commands/calendar/events/delete.js'
 import { calendarEventsRsvpCommand } from './commands/calendar/events/rsvp.js'
 import { tasksListCommand } from './commands/tasks/list.js'
+import {
+  tasksCompleteCommand,
+  tasksCreateCommand,
+  tasksDeleteCommand,
+  tasksReopenCommand,
+  tasksUpdateCommand,
+} from './commands/tasks/write.js'
 import { tasksListsListCommand } from './commands/tasks/lists/list.js'
 import {
   tasksListsCreateCommand,
@@ -136,6 +143,7 @@ import { doctorCommand } from './commands/doctor.js'
 import { refreshSkillAfterUpgrade } from './skill.js'
 import { checkForUpdate } from './update-check.js'
 import { CLI_VERSION } from './version.js'
+import { commanderExitCode } from './exit-codes.js'
 
 const program = new Command()
 
@@ -143,6 +151,8 @@ program
   .name('cirrux')
   .description('Cirrux CLI')
   .version(CLI_VERSION)
+  // Set before any subcommand is added: each one copies it when it is created.
+  .exitOverride((error) => process.exit(commanderExitCode(error)))
   .option(
     '--co-author <name>',
     'Tag mutations with a co-author (overrides CIRRUX_CO_AUTHOR; auto-set to "claude" inside Claude Code)',
@@ -982,7 +992,7 @@ calendarEvents
 
 const tasks = program
   .command('tasks')
-  .description('Read and manage task lists and the tasks on them')
+  .description('Read and change tasks, and the task lists they live on')
 
 tasks
   .command('list')
@@ -1003,6 +1013,62 @@ tasks
       '  $ cirrux tasks list --list <task-list-uuid> --status all',
   )
   .action(tasksListCommand)
+
+tasks
+  .command('create')
+  .description('Create a task on a task list')
+  .requiredOption('--list <task-list-uuid>', 'Task list to add it to (from `cirrux tasks lists list`)')
+  .requiredOption('--title <title>', 'What there is to do')
+  .option('--notes <notes>', 'Free text notes')
+  .option('--due <date-or-time>', 'Due date (YYYY-MM-DD) or time (YYYY-MM-DDTHH:MM, in --timezone)')
+  .option('--timezone <iana>', "Timezone for a --due time without an offset (default: the user's own)")
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new task UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nExamples:\n' +
+      '  $ cirrux tasks create --list <task-list-uuid> --title "Pay rent" --due 2026-11-01\n' +
+      '  $ cirrux tasks create --list <task-list-uuid> --title "Call Jan" --due 2026-10-30T09:00',
+  )
+  .action(tasksCreateCommand)
+
+tasks
+  .command('update')
+  .description('Change a task (only what you pass)')
+  .argument('<task-uuid>', 'Task UUID (from `cirrux tasks list`)')
+  .option('--title <title>', 'New title')
+  .option('--notes <notes>', 'New notes (an empty string clears them)')
+  .option('--due <date-or-time>', 'New due date (YYYY-MM-DD) or time (YYYY-MM-DDTHH:MM, in --timezone)')
+  .option('--no-due', 'Remove the due date')
+  .option('--timezone <iana>', "Timezone for a --due time without an offset (default: the user's own)")
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the task UUID (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux tasks update <task-uuid> --title "Pay the rent" --no-due')
+  .action(tasksUpdateCommand)
+
+tasks
+  .command('complete')
+  .description('Mark a task done')
+  .argument('<task-uuid>', 'Task UUID (from `cirrux tasks list`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the task UUID (for piping)')
+  .action(tasksCompleteCommand)
+
+tasks
+  .command('reopen')
+  .description('Mark a done task as still to do')
+  .argument('<task-uuid>', 'Task UUID (from `cirrux tasks list --status completed`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the task UUID (for piping)')
+  .action(tasksReopenCommand)
+
+tasks
+  .command('delete')
+  .description('Delete a task')
+  .argument('<task-uuid>', 'Task UUID (from `cirrux tasks list`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted task UUID (for piping)')
+  .action(tasksDeleteCommand)
 
 const tasksLists = tasks
   .command('lists')

@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test'
-import { formatTaskList, tasksListPath } from './list.js'
-import type { Task, TaskListResponse } from './tasks-shared.js'
+import { formatTaskList, taskListLabels, tasksListPath } from './list.js'
+import type { Task, TaskList, TaskListResponse } from './tasks-shared.js'
 
 function task(overrides: Partial<Task> = {}): Task {
   return {
@@ -62,4 +62,41 @@ test('formatTaskList points at the next page', () => {
 
 test('formatTaskList says so when there are none', () => {
   expect(formatTaskList(response([]), names).text).toBe('No tasks found.')
+})
+
+function list(overrides: Partial<TaskList>): TaskList {
+  return {
+    object: 'task_list',
+    uuid: 'mc-1',
+    task_list_uuid: 'list-1',
+    mailbox_uuid: 'mb-1',
+    mailbox_address: 'rick@example.com',
+    name: 'Reminders',
+    color: null,
+    role: 'owner',
+    can_write: true,
+    source: 'owned',
+    position: 1,
+    ...overrides,
+  }
+}
+
+// Every mailbox has a "Reminders", so a name alone does not say which one a task is on.
+test('taskListLabels adds the mailbox only when two lists share a name', () => {
+  const labels = taskListLabels([
+    list({}),
+    list({ uuid: 'mc-2', task_list_uuid: 'list-2', mailbox_address: 'help@example.com' }),
+    list({ uuid: 'mc-3', task_list_uuid: 'list-3', name: 'Groceries' }),
+  ])
+
+  expect(labels.get('list-1')).toBe('Reminders, rick@example.com')
+  expect(labels.get('list-2')).toBe('Reminders, help@example.com')
+  expect(labels.get('list-3')).toBe('Groceries')
+})
+
+// One list linked into two mailboxes is two entries with one task_list_uuid, not two lists.
+test('taskListLabels counts a list linked into two mailboxes once', () => {
+  const labels = taskListLabels([list({}), list({ uuid: 'mc-2', mailbox_address: 'other@example.com' })])
+
+  expect(labels.get('list-1')).toBe('Reminders')
 })
