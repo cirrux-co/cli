@@ -117,9 +117,14 @@ cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --to alice@
 # A MIME reply links with --in-reply-to too, and carries its own headers
 cirrux draft create --mailbox-uuid <mailbox-uuid> --file reply.eml --in-reply-to <email-uuid>
 
+# Attach files already in Cirrux by uuid: an email's attachment, a Drive file (repeatable)
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --to alice@example.com \
+  --attachment <attachment-uuid> --drive-file <file-uuid>
+
 # Change a draft in place: only what you pass changes, and a recipient flag replaces that list
 cirrux draft update <draft-uuid> --markdown body.md --subject "Updated plan"
 cirrux draft update <draft-uuid> --to alice@example.com --clear-cc
+cirrux draft update <draft-uuid> --add-drive-file <file-uuid> --remove-attachment <attachment-uuid>
 
 cirrux draft send <draft-uuid>
 cirrux draft delete <draft-uuid>
@@ -127,7 +132,9 @@ cirrux draft delete <draft-uuid>
 
 Anything you pass explicitly (`--to`, `--cc`, `--subject`, `--from`) wins over what the server derives. `--reply-all`, `--forward` and `--from` only work with `--markdown`, and `--forward` can't be combined with `--in-reply-to`. Markdown drafts carry no signature; to include one, build the MIME message yourself and pass it with `--file` or on stdin.
 
-`draft update` keeps the quoted original of a reply or the forwarded message when you replace the body with `--markdown` (a path, or `-` for stdin), and adds no signature. A draft that is scheduled to send can't be updated; cancel the scheduled send in the app first.
+`--attachment` and `--drive-file` attach files that are already in Cirrux: the server copies them, so nothing is downloaded, up to 25 MB a file and 35 MB together. To attach a file from your computer, `cirrux drive upload` it first.
+
+`draft update` keeps the quoted original of a reply or the forwarded message when you replace the body with `--markdown` (a path, or `-` for stdin), and adds no signature. `--add-attachment`/`--add-drive-file` add files and keep the rest; `--remove-attachment` takes one of the draft's attachments off. A draft that is scheduled to send can't be updated; cancel the scheduled send in the app first.
 
 `draft send` needs the `email.send` OAuth scope (separate from `email.write`); if you logged in before send existed, run `cirrux logout && cirrux login` to re-grant.
 
@@ -167,6 +174,7 @@ cirrux drive download <file-uuid> --output report.pdf
 # Upload a file (2 GB max); omit the folder to land in the root
 cirrux drive upload <folder-uuid> --file ./report.pdf
 cirrux drive upload --file ./notes.txt --name renamed.txt --content-type text/plain
+cirrux drive upload <folder-uuid> --attachment <attachment-uuid>   # save an email attachment, copied on the server
 
 # Replace a file's contents in place, keeping its UUID (2 GB max)
 cirrux drive replace <file-uuid> --file ./report-v2.pdf
@@ -205,12 +213,16 @@ cirrux tasks lists create --name "Groceries"
 cirrux tasks lists update <task-list-uuid> --name "Errands"
 cirrux tasks lists delete <task-list-uuid> --yes
 
-# Contacts (read-only; a contact lives in an addressbook)
+# Contacts (a contact lives in an addressbook)
 cirrux contacts addressbooks
 cirrux contacts list <addressbook-uuid>
 cirrux contacts search "acme"
 cirrux contacts search "jane" --addressbook-uuid <addressbook-uuid>
 cirrux contacts get <contact-uuid>
+cirrux contacts create <addressbook-uuid> --given Jane --family Doe --email work:jane@acme.example
+cirrux contacts update <contact-uuid> --title CFO
+cirrux contacts get <contact-uuid> --json | jq '.phones += [{"phone": "+31 6 1234 5678"}]' | cirrux contacts update <contact-uuid> --from-json -
+cirrux contacts delete <contact-uuid> --yes
 
 # Docs (every document argument also takes a docs.cirrux.co link)
 cirrux docs list --query "roadmap"
@@ -249,17 +261,17 @@ cirrux docs share create <document-uuid>
 | `cirrux email read <email-uuid>` / `cirrux email unread <email-uuid>` | Mark an email as read or unread                                                                      |
 | `cirrux email flag <email-uuid>` / `cirrux email unflag <email-uuid>` | Flag (star) or unflag an email                                                                       |
 | `cirrux email snooze <email-uuid> --until <when>`                     | Snooze an email until later (`--if-no-reply`); `cirrux email unsnooze` cancels                       |
-| `cirrux draft create --mailbox-uuid <uuid>`                           | Create a draft from a MIME message (`--file`/stdin) or markdown (`--markdown` + headers); `--in-reply-to` links a reply, `--reply-all`, `--forward`, `--from` |
-| `cirrux draft update <draft-uuid>`                                    | Change a draft's body (`--markdown`), subject or recipients; `--clear-cc`/`--clear-bcc` empty a list |
+| `cirrux draft create --mailbox-uuid <uuid>`                           | Create a draft from a MIME message (`--file`/stdin) or markdown (`--markdown` + headers); `--in-reply-to` links a reply, `--reply-all`, `--forward`, `--from`; `--attachment`/`--drive-file` attach files by uuid |
+| `cirrux draft update <draft-uuid>`                                    | Change a draft's body (`--markdown`), subject or recipients; `--clear-cc`/`--clear-bcc` empty a list; `--add-attachment`/`--add-drive-file`/`--remove-attachment` |
 | `cirrux draft send <draft-uuid>`                                      | Send a draft immediately (needs the `email.send` scope); `--remind-at <when>` sets a follow-up reminder |
 | `cirrux draft delete <draft-uuid>`                                    | Delete a draft                                                                                       |
 | `cirrux attachment get <attachment-uuid>`                             | Attachment metadata                                                                                  |
 | `cirrux attachment download <attachment-uuid>`                        | Raw bytes to stdout (use `--json` for base64url)                                                     |
-| `cirrux drive search <query>`                                         | Find files and folders by name, each with where it sits and its link (`--folder`, `--limit`, `--cursor`) |
+| `cirrux drive search <query>`                                         | Find files, folders and documents by name, each with where it sits and its link (`--folder`, `--limit`, `--cursor`) |
 | `cirrux drive list [folder-uuid]`                                     | List folders and files in a folder (omit for the root)                                               |
 | `cirrux drive get <file-uuid>`                                        | File metadata                                                                                        |
 | `cirrux drive download <file-uuid>`                                   | Decrypt locally; raw bytes to stdout (`--output <path>` to stream to a file, `--json` for base64url) |
-| `cirrux drive upload [folder-uuid] --file <path>`                     | Encrypt locally and upload, 2 GB max (`--name`, `--content-type`)                                    |
+| `cirrux drive upload [folder-uuid] --file <path>`                     | Encrypt locally and upload, 2 GB max (`--name`, `--content-type`); `--attachment <uuid>` saves an email attachment instead |
 | `cirrux drive replace <file-uuid> --file <path>`                      | Replace a file's contents in place, keeping its UUID; encrypts locally, 2 GB max (`--content-type`)  |
 | `cirrux drive trash <file-uuid>`                                      | Move a file to the trash (reversible, idempotent)                                                    |
 | `cirrux drive delete <file-uuid>`                                     | Permanently delete a file (idempotent)                                                               |
@@ -284,7 +296,10 @@ cirrux docs share create <document-uuid>
 | `cirrux contacts addressbooks`                                        | List your addressbooks (needs the `contacts.read` scope)                                             |
 | `cirrux contacts list <addressbook-uuid>`                             | List the contacts in one addressbook (`--limit`, `--cursor`)                                         |
 | `cirrux contacts search <query>`                                      | Substring search over contact names, company and email addresses (`--addressbook-uuid`)              |
-| `cirrux contacts get <contact-uuid>`                                  | One contact with its email addresses and phone numbers                                               |
+| `cirrux contacts get <contact-uuid>`                                  | One contact with its email addresses, phone numbers, addresses, links and birthday                   |
+| `cirrux contacts create <addressbook-uuid>`                           | Create a contact (`--given`, `--family`, `--company`, `--email`, `--phone`, `--birthday`, ..., or `--from-json`; needs the `contacts.write` scope) |
+| `cirrux contacts update <contact-uuid>`                               | Change a contact; `--email`/`--phone` replace the whole list, `--from-json` takes the edited `get --json` |
+| `cirrux contacts delete <contact-uuid>`                               | Delete a contact. Confirms unless `--yes`                                                            |
 | `cirrux docs list`                                                    | Your documents and the ones shared with you, newest first (`--query`, `--trashed`, `--limit`, `--cursor`) |
 | `cirrux docs get <document>`                                          | A document's title, owner, your role and link. Takes a UUID or a docs.cirrux.co link                 |
 | `cirrux docs read <document>`                                         | The document as markdown, suggestions marked inline (`--comments` adds the open threads)             |

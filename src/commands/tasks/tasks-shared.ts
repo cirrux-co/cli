@@ -95,6 +95,9 @@ export const TASKS_ERROR_RULES: ApiErrorRule[] = [
 /**
  * Map a failed tasks API call to a clear message + exit code. Task access is its own grant
  * (`tasks.*`), so a session that only has calendar access is told to log in again for tasks.
+ *
+ * Commands that take a task list uuid pass no `notFound`: the API's own 404 names the uuid, and
+ * when it is a list entry's `uuid` rather than its `task_list_uuid`, says which one to use.
  */
 export function handleTasksError(
   error: unknown,

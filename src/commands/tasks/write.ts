@@ -87,7 +87,7 @@ export async function tasksCreateCommand(options: TaskWriteOptions): Promise<voi
     })
     printTask(task, 'Created', options)
   } catch (error) {
-    handleTasksError(error, options, { action: 'Create task', notFound: `Task list '${list}' not found.` })
+    handleTasksError(error, options, { action: 'Create task' })
   }
 }
 

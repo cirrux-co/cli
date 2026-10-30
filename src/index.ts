@@ -70,6 +70,7 @@ import { driveGetCommand } from './commands/drive/get.js'
 import { driveSearchCommand } from './commands/drive/search.js'
 import { driveDownloadCommand } from './commands/drive/download.js'
 import { driveUploadCommand } from './commands/drive/upload.js'
+import { collectUuid } from './file-references.js'
 import { driveReplaceCommand } from './commands/drive/replace.js'
 import { driveTrashCommand } from './commands/drive/trash.js'
 import { driveDeleteCommand } from './commands/drive/delete.js'
@@ -108,6 +109,7 @@ import { contactsAddressbooksCommand } from './commands/contacts/addressbooks.js
 import { contactsListCommand } from './commands/contacts/list.js'
 import { contactsGetCommand } from './commands/contacts/get.js'
 import { contactsSearchCommand } from './commands/contacts/search.js'
+import { contactsCreateCommand, contactsDeleteCommand, contactsUpdateCommand } from './commands/contacts/write.js'
 import {
   docsCommentsAddCommand,
   docsCommentsDeleteCommand,
@@ -745,6 +747,8 @@ draft
   .option('--in-reply-to <email-uuid>', "Link this draft as a reply to an existing email (--mailbox-uuid must be that email's mailbox)")
   .option('--reply-all', 'Reply to everyone on the original: derive To and Cc, minus your own addresses (markdown mode only, needs --in-reply-to)')
   .option('--forward <email-uuid>', 'Forward this email: your markdown, then the forwarded message and its attachments (markdown mode only)')
+  .option('--attachment <uuid>', 'Attach an attachment of any email you can read, copied on the server (repeatable)', collectUuid, [])
+  .option('--drive-file <uuid>', 'Attach a Drive file, copied on the server (repeatable)', collectUuid, [])
   .option(
     '--no-quote-original',
     'Do not quote the original email below your reply (markdown replies quote it by default)',
@@ -762,11 +766,16 @@ Examples:
   $ cirrux draft create --mailbox-uuid <uuid> --markdown reply.md --in-reply-to <email-uuid> --reply-all
   $ cirrux draft create --mailbox-uuid <uuid> --markdown note.md --forward <email-uuid> --to bob@example.com
   $ cirrux draft create --mailbox-uuid <uuid> --markdown body.md --to alice@example.com --from sales@example.com
+  $ cirrux draft create --mailbox-uuid <uuid> --markdown body.md --to alice@example.com --drive-file <file-uuid>
   $ cirrux draft create --mailbox-uuid <uuid> --file message.eml
 
 A markdown reply derives what you leave out: To (or To and Cc with --reply-all),
 the "Re:" subject, and the address to send from. Anything you pass explicitly wins.
 --forward and --in-reply-to can't be combined.
+
+--attachment and --drive-file attach files that are already in Cirrux, up to 25 MB
+each and 35 MB together. The server copies them, so nothing is downloaded. To attach a
+file from your computer, upload it with 'cirrux drive upload' first.
 
 Markdown drafts carry no signature. To include one, build the full MIME message
 yourself and pass it with --file or on stdin.`,
@@ -784,6 +793,9 @@ draft
   .option('--bcc <addr>', '`Name <addr>` or `addr` (repeatable; replaces the Bcc list)', collectAddress, [])
   .option('--clear-cc', 'Remove every Cc recipient')
   .option('--clear-bcc', 'Remove every Bcc recipient')
+  .option('--add-attachment <uuid>', 'Attach an attachment of any email you can read (repeatable)', collectUuid, [])
+  .option('--add-drive-file <uuid>', 'Attach a Drive file (repeatable)', collectUuid, [])
+  .option('--remove-attachment <uuid>', "Take one of the draft's attachments off (repeatable)", collectUuid, [])
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the draft UUID (for piping)')
   .addHelpText(
@@ -794,10 +806,13 @@ Examples:
   $ cat body.md | cirrux draft update <uuid> --markdown -
   $ cirrux draft update <uuid> --subject "Updated plan" --to alice@example.com --to "Bob <bob@example.com>"
   $ cirrux draft update <uuid> --clear-cc
+  $ cirrux draft update <uuid> --add-drive-file <file-uuid> --remove-attachment <attachment-uuid>
 
 Only what you pass changes. A recipient flag replaces that whole list, so pass
 every address you want to keep. --markdown replaces the part you wrote and keeps
 the quoted original of a reply or the forwarded message. No signature is added.
+Attachments are added and removed, never replaced, so the draft keeps the rest.
+The draft lists its attachments with their uuids.
 
 A draft that is scheduled to send, or is being sent, can't be updated: cancel
 the scheduled send in the app first.`,
@@ -814,20 +829,25 @@ draft
 
 draft
   .command('send')
-  .description('Send a draft')
+  .description('Send a draft now, or schedule it for later with --at')
   .argument('<uuid>', 'Draft UUID')
+  .option('--at <when>', "Schedule the send for later instead of now. '+2h', 'tomorrow 9am', 'monday', 'mar 20 17:00', or an ISO 8601 timestamp (must be in the future)")
   .option('--remind-at <when>', "Set a reminder that fires after sending. Wake-up time: '+2d', 'tomorrow 9am', 'monday', '3 hours', 'mar 20', or an ISO 8601 timestamp")
   .option('--remind-if-no-reply', 'Only remind if nobody has replied by then')
   .option('--json', 'Output as JSON')
-  .option('--quiet', 'Output only the sent email UUID (for piping)')
+  .option('--quiet', 'Output only the sent (or scheduled) draft UUID (for piping)')
   .addHelpText(
     'after',
     `
 Examples:
   $ cirrux draft send <uuid>
+  $ cirrux draft send <uuid> --at "+2h"
+  $ cirrux draft send <uuid> --at "tomorrow 9am"
   $ cirrux draft send <uuid> --remind-at "+3d" --remind-if-no-reply
 
-A reminder passed here overrides one set when the draft was created.`,
+With --at, the draft is scheduled and goes out at that time; the response is the
+scheduled draft. Sending again with a new --at reschedules it. A reminder passed
+here overrides one set when the draft was created.`,
   )
   .action(draftSendCommand)
 
@@ -1121,7 +1141,7 @@ tasksLists
 
 const contacts = program
   .command('contacts')
-  .description('Browse and look up contacts')
+  .description('Look up, create, change and delete contacts')
 
 contacts
   .command('addressbooks')
@@ -1165,12 +1185,96 @@ contacts
 
 contacts
   .command('get')
-  .description('Show one contact with its email addresses and phone numbers')
+  .description('Show one contact with its email addresses, phone numbers, addresses and links')
   .argument('<uuid>', 'Contact UUID (from `cirrux contacts search`)')
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the contact UUID (for piping)')
   .addHelpText('after', '\nExample:\n  $ cirrux contacts get <contact-uuid> --json')
   .action(contactsGetCommand)
+
+const collect = (value: string, previous: string[] | undefined): string[] => [...(previous ?? []), value]
+
+/** The field flags create and update share. */
+function contactFieldOptions(command: Command): Command {
+  return command
+    .option('--name <name>', 'Full name as shown (derived from --given and --family when left out)')
+    .option('--given <name>', 'Given (first) name')
+    .option('--family <name>', 'Family (last) name')
+    .option('--additional <name>', 'Additional (middle) names')
+    .option('--prefix <prefix>', 'Honorific prefix, such as dr.')
+    .option('--suffix <suffix>', 'Honorific suffix')
+    .option('--nickname <nickname>', 'Nickname')
+    .option('--company <company>', 'Company')
+    .option('--title <title>', 'Job title')
+    .option('--role <role>', 'Role')
+    .option('--notes <notes>', 'Free text notes')
+    .option('--kind <kind>', 'individual, organization, group, location or application')
+    .option('--birthday <date>', 'Birthday as YYYY-MM-DD, or MM-DD without a year')
+    .option(
+      '--email <[types:]address>',
+      'An email address, optionally typed (work:jane@acme.example). Repeat for several; replaces them all',
+      collect,
+    )
+    .option(
+      '--phone <[types:]number>',
+      'A phone number, optionally typed (cell:+31 6 1234 5678). Repeat for several; replaces them all',
+      collect,
+    )
+    .option('--from-json <file>', 'The whole contact as JSON (as `contacts get --json` prints), or - for stdin')
+    .option('--json', 'Output as JSON')
+}
+
+contactFieldOptions(
+  contacts
+    .command('create')
+    .description('Create a contact in an addressbook')
+    .argument('<addressbook-uuid>', 'Addressbook UUID (from `cirrux contacts addressbooks`)'),
+)
+  .option('--quiet', 'Output only the new contact UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nAddresses and links (web, chat, social) go in --from-json. An empty string clears a field.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux contacts create <addressbook-uuid> --given Jane --family Doe --email work:jane@acme.example\n' +
+      '  $ cirrux contacts create <addressbook-uuid> --company "Acme BV" --phone +31201234567 --quiet\n' +
+      '  $ cirrux contacts create <addressbook-uuid> --from-json jane.json',
+  )
+  .action(contactsCreateCommand)
+
+contactFieldOptions(
+  contacts
+    .command('update')
+    .description('Change a contact (only the fields you pass)')
+    .argument('<uuid>', 'Contact UUID (from `cirrux contacts search`)'),
+)
+  .option('--no-birthday', 'Remove the birthday')
+  .option('--quiet', 'Output only the contact UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\n--email and --phone replace every email address or phone number the contact has: pass them all,\n' +
+      'or edit `contacts get --json` and send it back with --from-json, which also changes addresses and\n' +
+      'links. `--email ""` clears the list, and an empty string clears any other field.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux contacts update <uuid> --title CFO --company "Acme Holding"\n' +
+      '  $ cirrux contacts get <uuid> --json | jq \'.phones += [{"phone": "+31 6 1234 5678"}]\' \\\n' +
+      '      | cirrux contacts update <uuid> --from-json -',
+  )
+  .action(contactsUpdateCommand)
+
+contacts
+  .command('delete')
+  .description('Delete a contact')
+  .argument('<uuid>', 'Contact UUID (from `cirrux contacts search`)')
+  .option('--yes', 'Skip the confirmation prompt (required when not running in a terminal)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted contact UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nIt is deleted from every device the contacts sync to and can\'t be undone, so this confirms first\n' +
+      'unless --yes is passed.\n' +
+      '\nExample:\n  $ cirrux contacts delete <uuid> --yes',
+  )
+  .action(contactsDeleteCommand)
 
 const docs = program
   .command('docs')
@@ -1635,15 +1739,16 @@ drive
 drive
   .command('search')
   .description(
-    'Search file and folder names, with the same operators as mail search: type:pdf, owner:me, is:shared, ' +
-      'in:trash, after:/before:, larger:/smaller:, OR, -. An empty query lists a folder (or the top level)',
+    'Search file and folder names and document titles, with the same operators as mail search: type:pdf, ' +
+      'owner:me, is:shared, in:trash, after:/before:, larger:/smaller:, OR, -. An empty query lists a folder ' +
+      '(or the top level)',
   )
   .argument('<query>', 'Search query (quote it when it has spaces)')
   .option('--folder <uuid>', 'Search this folder and everything under it')
   .option('--limit <n>', 'Items per page, 1-100 (default 25)')
   .option('--cursor <cursor>', 'Pagination cursor from a previous response')
   .option('--json', 'Output as JSON')
-  .option('--quiet', 'Output only file and folder UUIDs, one per line (for piping)')
+  .option('--quiet', 'Output only item UUIDs, one per line (for piping)')
   .action(driveSearchCommand)
 
 drive
@@ -1665,11 +1770,12 @@ drive
 
 drive
   .command('upload')
-  .description('Upload a file (encrypts locally; 2 GB max)')
+  .description('Upload a file (encrypts locally; 2 GB max), or save an email attachment to Drive')
   .argument('[folder-uuid]', 'Destination folder UUID (omit to upload to the root)')
-  .requiredOption('--file <path>', 'Path to the file to upload')
-  .option('--name <name>', 'Override the stored filename (defaults to the file basename)')
-  .option('--content-type <type>', 'MIME type (defaults to application/octet-stream)')
+  .option('--file <path>', 'Path to the file to upload')
+  .option('--attachment <uuid>', 'Save an email attachment instead of a local file (copied on the server)')
+  .option('--name <name>', "Override the stored filename (defaults to the file's basename or the attachment's name)")
+  .option('--content-type <type>', "MIME type (defaults to application/octet-stream, or the attachment's type)")
   .option('--json', 'Output as JSON')
   .option('--quiet', 'Output only the new file UUID (for piping)')
   .action(driveUploadCommand)

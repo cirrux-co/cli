@@ -6,7 +6,7 @@ const ME = { self: true, first_name: 'Ada', last_name: 'Lovelace', display_name:
 const SAM = { self: false, first_name: 'Sam', last_name: 'Jansen', display_name: 'Sam Jansen' }
 
 function message(uuid: string, author: typeof ME, body = 'text\n') {
-  return { uuid, author, body, created_at: '2026-10-01T10:00:00.000Z', edited_at: null }
+  return { uuid, author, co_author: null, body, created_at: '2026-10-01T10:00:00.000Z', edited_at: null }
 }
 
 function thread(overrides: Partial<DocumentContentThread> = {}): DocumentContentThread {
@@ -20,6 +20,7 @@ function thread(overrides: Partial<DocumentContentThread> = {}): DocumentContent
     suggested_text: null,
     suggested_format: null,
     author: ME,
+    co_author: null,
     created_at: '2026-10-01T10:00:00.000Z',
     messages: [message('m-1', ME), message('m-2', SAM), message('m-3', ME), message('m-4', SAM)],
     ...overrides,

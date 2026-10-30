@@ -1,6 +1,7 @@
 import { authedRequest } from '../../api.js'
 import { type ApiErrorRule, handleApiError } from '../../api-errors.js'
 import { ExitCode } from '../../exit-codes.js'
+import { FILE_REFERENCE_ERROR_RULES, fileReferences } from '../../file-references.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
 import { parseAddress, readMarkdownInput } from './create.js'
 import { type Draft, draftSummary, requireCredentials } from './draft-shared.js'
@@ -13,6 +14,9 @@ export interface DraftUpdateOptions extends OutputOptions {
   bcc?: string[]
   clearCc?: boolean
   clearBcc?: boolean
+  addAttachment?: string[]
+  addDriveFile?: string[]
+  removeAttachment?: string[]
 }
 
 export const DRAFT_UPDATE_ERROR_RULES: ApiErrorRule[] = [
@@ -28,6 +32,7 @@ export const DRAFT_UPDATE_ERROR_RULES: ApiErrorRule[] = [
     reason: 'that email is not a draft (it may already have been sent).',
     hint: "To write a new message, use 'cirrux draft create'.",
   },
+  ...FILE_REFERENCE_ERROR_RULES,
 ]
 
 export function updatePath(uuid: string): string {
@@ -53,9 +58,15 @@ export function draftUpdateUsageError(options: DraftUpdateOptions): string | nul
     Boolean(options.cc?.length) ||
     Boolean(options.bcc?.length) ||
     Boolean(options.clearCc) ||
-    Boolean(options.clearBcc)
+    Boolean(options.clearBcc) ||
+    Boolean(options.addAttachment?.length) ||
+    Boolean(options.addDriveFile?.length) ||
+    Boolean(options.removeAttachment?.length)
   if (!changes) {
-    return 'Nothing to update. Pass at least one of --markdown, --subject, --to, --cc, --bcc, --clear-cc or --clear-bcc.'
+    return (
+      'Nothing to update. Pass at least one of --markdown, --subject, --to, --cc, --bcc, --clear-cc, --clear-bcc, ' +
+      '--add-attachment, --add-drive-file or --remove-attachment.'
+    )
   }
 
   return null
@@ -78,6 +89,11 @@ export function buildDraftUpdateBody(options: DraftUpdateOptions, markdown?: str
 
   if (options.clearBcc) body.bcc = []
   else if (options.bcc?.length) body.bcc = options.bcc.map(parseAddress)
+
+  // Added and removed, never replaced, so a forward keeps the attachments it carried.
+  const added = fileReferences(options.addAttachment, options.addDriveFile)
+  if (added.length > 0) body.add_attachments = added
+  if (options.removeAttachment?.length) body.remove_attachment_uuids = options.removeAttachment
 
   return body
 }

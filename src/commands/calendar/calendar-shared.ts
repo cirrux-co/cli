@@ -128,6 +128,10 @@ export const CALENDAR_ERROR_RULES: ApiErrorRule[] = [
  * Map a failed calendar API call to a clear message + exit code. Binds the
  * scope wording and the calendar-specific rules; the ladder itself lives in
  * `api-errors.ts`.
+ *
+ * `events list` and `events create` pass no `notFound`: the API's own 404 names
+ * the calendar uuid, and when it is a calendar entry's `uuid` rather than its
+ * `calendar_uuid`, says which one to use.
  */
 export function handleCalendarError(
   error: unknown,

@@ -28,9 +28,6 @@ export async function calendarEventsCreateCommand(
       quietValue: () => event.id,
     })
   } catch (error) {
-    handleCalendarError(error, options, {
-      action: 'Create event',
-      notFound: `Calendar '${calendarUuid}' not found.`,
-    })
+    handleCalendarError(error, options, { action: 'Create event' })
   }
 }

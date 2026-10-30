@@ -147,3 +147,29 @@ test('--reply-all, --forward and --from on a MIME draft are a usage error naming
 
   expect(draftCreateUsageError({ forward: 'email-fwd' })).toContain('--forward')
 })
+
+test('--attachment and --drive-file become attachments, in either format', () => {
+  const references = [{ attachment_uuid: 'att-1' }, { drive_file_uuid: 'file-1' }]
+
+  const markdown = buildDraftCreateBody(
+    { mailboxUuid: 'mb', markdown: 'body.md', attachment: ['att-1'], driveFile: ['file-1'] },
+    'Hi',
+  )
+  expect(markdown.attachments).toEqual(references)
+
+  const mime = buildDraftCreateBody({ mailboxUuid: 'mb', attachment: ['att-1'], driveFile: ['file-1'] }, 'From: a@b')
+  expect(mime.attachments).toEqual(references)
+
+  expect(buildDraftCreateBody({ mailboxUuid: 'mb', attachment: [], driveFile: [] }, 'From: a@b')).not.toHaveProperty(
+    'attachments',
+  )
+})
+
+test('an attachment that is not there is not found, in its own words, and says where to look', () => {
+  const body = JSON.stringify({ error: 'attachment_not_found', error_description: 'Attachment att-1 not found.' })
+  const result = classifyApiError(new ApiError(404, body), { action: 'Create draft', rules: DRAFT_CREATE_ERROR_RULES })
+
+  expect(result.code).toBe(ExitCode.NOT_FOUND)
+  expect(result.message).toBe('Create draft failed: Attachment att-1 not found.')
+  expect(result.hint).toContain('cirrux email get')
+})

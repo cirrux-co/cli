@@ -17,6 +17,37 @@ export interface ContactPhone {
   preference: number | null
 }
 
+export interface ContactAddress {
+  object: string
+  uuid: string
+  street: string | null
+  extended_address: string | null
+  po_box: string | null
+  city: string | null
+  state: string | null
+  postal_code: string | null
+  country: string | null
+  types: string[]
+  preference: number | null
+}
+
+export interface ContactLink {
+  object: string
+  uuid: string
+  kind: 'url' | 'impp' | 'social_profile'
+  url: string
+  service: string | null
+  label: string | null
+  preference: number | null
+}
+
+/** The year is null when it is not known. */
+export interface ContactBirthday {
+  year: number | null
+  month: number
+  day: number
+}
+
 export interface Contact {
   object: string
   uuid: string
@@ -33,8 +64,11 @@ export interface Contact {
   title: string | null
   role: string | null
   notes: string | null
+  birthday: ContactBirthday | null
   emails: ContactEmail[]
   phones: ContactPhone[]
+  addresses: ContactAddress[]
+  links: ContactLink[]
   created_at: string
   updated_at: string | null
 }
@@ -139,6 +173,13 @@ export function formatContact(contact: Contact): string {
   for (const phone of contact.phones) {
     lines.push(`Phone:       ${phone.phone}${formatTypes(phone.types)}`)
   }
+  for (const address of contact.addresses) {
+    lines.push(`Address:     ${formatAddress(address)}${formatTypes(address.types)}`)
+  }
+  for (const link of contact.links) {
+    lines.push(`${LINK_LABELS[link.kind].padEnd(13)}${formatLink(link)}`)
+  }
+  if (contact.birthday) lines.push(`Birthday:    ${formatBirthday(contact.birthday)}`)
 
   if (contact.notes) lines.push(`Notes:       ${contact.notes}`)
 
@@ -165,6 +206,31 @@ export function formatContactResults(
     text: response.data.length > 0 ? lines.join('\n') : emptyMessage,
     quietValue: response.data.map((contact) => contact.uuid).join('\n'),
   }
+}
+
+const LINK_LABELS: Record<ContactLink['kind'], string> = {
+  url: 'Web:',
+  impp: 'Chat:',
+  social_profile: 'Profile:',
+}
+
+/** The parts on one line, street first, the way an address is written on an envelope. */
+export function formatAddress(address: ContactAddress): string {
+  const cityLine = [address.postal_code, address.city].filter(Boolean).join(' ')
+  return [address.po_box, address.street, address.extended_address, cityLine, address.state, address.country]
+    .filter(Boolean)
+    .join(', ')
+}
+
+function formatLink(link: ContactLink): string {
+  const note = link.kind === 'url' ? link.label : link.service
+  return note ? `${link.url}  (${note})` : link.url
+}
+
+/** 1980-03-14, or 03-14 when the year is unknown. */
+export function formatBirthday(birthday: ContactBirthday): string {
+  const monthDay = `${String(birthday.month).padStart(2, '0')}-${String(birthday.day).padStart(2, '0')}`
+  return birthday.year ? `${birthday.year}-${monthDay}` : monthDay
 }
 
 function formatTypes(types: string[]): string {

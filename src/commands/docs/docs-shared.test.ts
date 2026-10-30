@@ -140,6 +140,7 @@ function thread(overrides: Partial<DocumentContentThread>): DocumentContentThrea
     suggested_text: null,
     suggested_format: null,
     author: SAM,
+    co_author: null,
     created_at: '2026-09-01T10:00:00.000Z',
     messages: [],
     ...overrides,
@@ -154,9 +155,10 @@ test('formatDocumentContent prints the markdown alone unless comments are asked 
 })
 
 test('formatDocumentContent lists each open thread under the document, with its messages', () => {
-  const message = (body: string, author = SAM) => ({
+  const message = (body: string, author = SAM, co_author: string | null = null) => ({
     uuid: 'm',
     author,
+    co_author,
     body,
     created_at: '2026-09-01T10:00:00.000Z',
     edited_at: null,
@@ -174,13 +176,20 @@ test('formatDocumentContent lists each open thread under the document, with its 
     thread({ uuid: 't-3', placement: 'document', author: ME }),
     thread({ uuid: 't-4', placement: 'detached', quote: 'gone' }),
     thread({ uuid: 't-5', kind: 'suggestion', ref: 's2', suggested_format: [{ type: 'bold' }] }),
+    thread({
+      uuid: 't-6',
+      quote: 'Friday',
+      author: ME,
+      co_author: 'claude',
+      messages: [message('Is Friday firm?\n', ME, 'claude')],
+    }),
   ]
 
   expect(formatDocumentContent({ object: 'document_content', uuid: UUID, revision: 4, markdown, threads }, { comments: true }))
     .toBe(
       [
         'We ship on {~~Monday~>Friday~~}{>>s1<<}.',
-        '--- 5 open threads ---',
+        '--- 6 open threads ---',
         '[s1] Suggestion by Sam Jansen: replaces "Monday" with "Friday" (t-1)\n' +
           '  Sam Jansen: Monday is a holiday\n' +
           '  You: Agreed.\n' +
@@ -190,6 +199,7 @@ test('formatDocumentContent lists each open thread under the document, with its 
         'Comment by you on the whole document (t-3)',
         'Comment by Sam Jansen on "gone", whose text was deleted (t-4)',
         '[s2] Suggestion by Sam Jansen: changes the formatting (t-5)',
+        'Comment by Claude for you on "Friday" (t-6)\n  Claude for you: Is Friday firm?',
       ].join('\n\n'),
     )
 })

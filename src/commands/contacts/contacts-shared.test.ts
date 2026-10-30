@@ -32,8 +32,11 @@ function contact(overrides: Partial<Contact> = {}): Contact {
     title: null,
     role: null,
     notes: null,
+    birthday: null,
     emails: [email('jane@acme.example')],
     phones: [],
+    addresses: [],
+    links: [],
     created_at: '2026-09-01T00:00:00.000Z',
     updated_at: null,
     ...overrides,
@@ -92,6 +95,35 @@ test('formatContact lists every email and phone with its types', () => {
       'Notes:       Met at the conference',
     ].join('\n'),
   )
+})
+
+test('formatContact shows addresses, links and a birthday, the year only when it is known', () => {
+  const detailed = contact({
+    emails: [],
+    addresses: [
+      {
+        object: 'contact_address', uuid: 'a-1', street: 'Keizersgracht 1', extended_address: null, po_box: null,
+        city: 'Amsterdam', state: null, postal_code: '1015 CJ', country: 'NL', types: ['home'], preference: 1,
+      },
+    ],
+    links: [
+      { object: 'contact_link', uuid: 'l-1', kind: 'url', url: 'https://acme.example', service: null, label: 'Homepage', preference: null },
+      { object: 'contact_link', uuid: 'l-2', kind: 'impp', url: 'xmpp:jane@jabber.example', service: 'jabber', label: 'jabber', preference: null },
+    ],
+    birthday: { year: null, month: 3, day: 14 },
+  })
+
+  expect(formatContact(detailed)).toBe(
+    [
+      'Jane Acme  (c-1)',
+      'Acme Corp',
+      'Address:     Keizersgracht 1, 1015 CJ Amsterdam, NL  (home)',
+      'Web:         https://acme.example  (Homepage)',
+      'Chat:        xmpp:jane@jabber.example  (jabber)',
+      'Birthday:    03-14',
+    ].join('\n'),
+  )
+  expect(formatContact(contact({ emails: [], birthday: { year: 1980, month: 3, day: 14 } }))).toContain('Birthday:    1980-03-14')
 })
 
 test('formatContact drops the type suffix when there are none', () => {

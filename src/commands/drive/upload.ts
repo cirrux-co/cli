@@ -1,7 +1,9 @@
 import { closeSync, openSync, readSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
 import { authedRequest, authedRequestVoid, putToPresignedUrl } from '../../api.js'
+import { handleApiError } from '../../api-errors.js'
 import { ExitCode } from '../../exit-codes.js'
+import { FILE_REFERENCE_ERROR_RULES } from '../../file-references.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
 import {
   buildAad,
@@ -11,10 +13,12 @@ import {
   packChunk,
   randomIv,
 } from './crypto.js'
-import { DRIVE_MAX_BYTES, type DriveFile, handleDriveError, requireCredentials } from './drive-shared.js'
+import { DRIVE_ERROR_RULES, DRIVE_MAX_BYTES, type DriveFile, handleDriveError, requireCredentials } from './drive-shared.js'
 
 interface UploadOptions extends OutputOptions {
   file?: string
+  /** An email attachment to save instead of a local file, copied on the server. */
+  attachment?: string
   name?: string
   contentType?: string
 }
@@ -36,13 +40,25 @@ export async function driveUploadCommand(
   folderUuid: string | undefined,
   options: UploadOptions,
 ): Promise<void> {
+  if (options.file && options.attachment) {
+    outputError('--file and --attachment are mutually exclusive.', {
+      ...options,
+      code: ExitCode.USAGE_ERROR,
+      errorType: 'usage_error',
+    })
+  }
+
   requireCredentials(options)
+
+  if (options.attachment) {
+    return saveAttachment(folderUuid, options.attachment, options)
+  }
 
   if (!options.file) {
     outputError('Missing --file <path>.', {
       ...options,
       code: ExitCode.USAGE_ERROR,
-      hint: 'Provide the file to upload with --file.',
+      hint: 'Provide the file to upload with --file, or an email attachment with --attachment <uuid>.',
       errorType: 'usage_error',
     })
   }
@@ -80,6 +96,46 @@ export async function driveUploadCommand(
     handleDriveError(error, options, {
       action: 'Upload',
       notFound: folderUuid ? `Folder '${folderUuid}' not found.` : undefined,
+    })
+  }
+}
+
+// An email attachment saved as a Drive file: the server copies it, so nothing is downloaded or
+// encrypted here. Kept pure so it can be unit-tested without HTTP.
+export function attachmentUploadRequest(args: {
+  folderUuid: string | undefined
+  attachmentUuid: string
+  name: string | undefined
+  contentType: string | undefined
+}): { path: string; body: Record<string, string> } {
+  const body: Record<string, string> = { attachment_uuid: args.attachmentUuid }
+  if (args.folderUuid) body.folder_uuid = args.folderUuid
+  if (args.name) body.name = args.name
+  if (args.contentType) body.content_type = args.contentType
+  return { path: 'public_api/v1/drive/files', body }
+}
+
+async function saveAttachment(folderUuid: string | undefined, attachmentUuid: string, options: UploadOptions) {
+  const { path, body } = attachmentUploadRequest({
+    folderUuid,
+    attachmentUuid,
+    name: options.name,
+    contentType: options.contentType,
+  })
+
+  try {
+    const file = await authedRequest<DriveFile>(path, { method: 'POST', body })
+    output(file as unknown as Record<string, unknown>, {
+      ...options,
+      text: () => `Saved ${file.name} to Drive (${file.uuid})`,
+      quietValue: () => file.uuid,
+    })
+  } catch (error) {
+    handleApiError(error, options, {
+      action: 'Save attachment',
+      scope: 'Drive and email',
+      notFound: folderUuid ? `Folder '${folderUuid}' not found.` : undefined,
+      rules: [...FILE_REFERENCE_ERROR_RULES, ...DRIVE_ERROR_RULES],
     })
   }
 }

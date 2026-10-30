@@ -86,10 +86,7 @@ export async function tasksListsUpdateCommand(taskListUuid: string, options: Tas
       quietValue: () => list.task_list_uuid,
     })
   } catch (error) {
-    handleTasksError(error, options, {
-      action: 'Update task list',
-      notFound: `Task list '${taskListUuid}' not found.`,
-    })
+    handleTasksError(error, options, { action: 'Update task list' })
   }
 }
 
@@ -110,9 +107,6 @@ export async function tasksListsDeleteCommand(
       { ...options, text: () => `Deleted task list ${taskListUuid}`, quietValue: () => taskListUuid },
     )
   } catch (error) {
-    handleTasksError(error, options, {
-      action: 'Delete task list',
-      notFound: `Task list '${taskListUuid}' not found.`,
-    })
+    handleTasksError(error, options, { action: 'Delete task list' })
   }
 }

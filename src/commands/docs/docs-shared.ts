@@ -59,6 +59,8 @@ export interface DocumentSharing {
 export interface DocumentContentMessage {
   uuid: string
   author: DocumentOwner | null
+  /** The agent that wrote it with its author, null for a person alone. */
+  co_author: string | null
   /** The message as markdown. */
   body: string
   created_at: string
@@ -76,6 +78,8 @@ export interface DocumentContentThread {
   suggested_text: string | null
   suggested_format: { type: string }[] | null
   author: DocumentOwner | null
+  /** The agent that wrote it with its author, null for a person alone. */
+  co_author: string | null
   created_at: string
   messages: DocumentContentMessage[]
 }
@@ -143,6 +147,12 @@ export const DOCS_ERROR_RULES: ApiErrorRule[] = [
     errorCode: 'target_spans_blocks',
     exitCode: ExitCode.USAGE_ERROR,
     hint: "Change several paragraphs with 'cirrux docs delete-text' and 'cirrux docs insert'.",
+  },
+  {
+    status: 422,
+    errorCode: 'changes_suggestion',
+    exitCode: ExitCode.USAGE_ERROR,
+    hint: "That text is someone's suggestion. Accept or reject it with 'cirrux docs suggestions accept|reject', or make your change with --suggest.",
   },
   {
     status: 422,
@@ -318,6 +328,12 @@ function personName(person: DocumentOwner | null): string {
   return person ? ownerName(person) : 'someone'
 }
 
+/** Who wrote it, with the agent that wrote it with them, as the Docs app says it: "Claude for you". */
+function writtenBy(author: DocumentOwner | null, coAuthor: string | null): string {
+  const name = personName(author)
+  return coAuthor ? `${capitalized(coAuthor)} for ${name}` : name
+}
+
 function capitalized(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
@@ -332,7 +348,7 @@ function suggestionSummary(thread: DocumentContentThread): string {
 }
 
 function threadHeading(thread: DocumentContentThread): string {
-  const author = personName(thread.author)
+  const author = writtenBy(thread.author, thread.co_author)
   if (thread.kind === 'suggestion') {
     return `[${thread.ref ?? '?'}] Suggestion by ${author}: ${suggestionSummary(thread)}`
   }
@@ -344,7 +360,10 @@ function threadHeading(thread: DocumentContentThread): string {
 /** One message, its markdown indented under its author. */
 function formatMessage(message: DocumentContentMessage): string {
   const [first = '', ...rest] = message.body.trimEnd().split('\n')
-  const lines = [`  ${capitalized(personName(message.author))}: ${first}`, ...rest.map((line) => (line ? `    ${line}` : ''))]
+  const lines = [
+    `  ${capitalized(writtenBy(message.author, message.co_author))}: ${first}`,
+    ...rest.map((line) => (line ? `    ${line}` : '')),
+  ]
   return lines.join('\n')
 }
 

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { authedRequest } from '../../api.js'
 import { type ApiErrorRule, handleApiError } from '../../api-errors.js'
 import { ExitCode } from '../../exit-codes.js'
+import { FILE_REFERENCE_ERROR_RULES, fileReferences } from '../../file-references.js'
 import { applyReminder, type ReminderOptions } from './reminder.js'
 import { output, outputError, type OutputOptions } from '../../output.js'
 import { type Draft, draftSummary, requireCredentials } from './draft-shared.js'
@@ -21,6 +22,10 @@ export interface DraftCreateOptions extends OutputOptions, ReminderOptions {
   replyAll?: boolean
   forward?: string
   from?: string
+  /** Email attachments to copy onto the draft (repeatable --attachment). */
+  attachment?: string[]
+  /** Drive files to copy onto the draft (repeatable --drive-file). */
+  driveFile?: string[]
 }
 
 // A reply has to live in its parent's mailbox, because that is where the thread
@@ -31,6 +36,7 @@ export const DRAFT_CREATE_ERROR_RULES: ApiErrorRule[] = [
     exitCode: ExitCode.USAGE_ERROR,
     hint: "Pass the parent's mailbox as --mailbox-uuid. 'cirrux email get <email-uuid>' shows it.",
   },
+  ...FILE_REFERENCE_ERROR_RULES,
 ]
 
 export interface DraftAddress {
@@ -123,6 +129,10 @@ export function buildDraftCreateBody(options: DraftCreateOptions, content: strin
   if (options.inReplyTo) {
     body.in_reply_to_email_uuid = options.inReplyTo
   }
+
+  // Either format: the files are copied onto the draft next to whatever parts its MIME carries.
+  const attachments = fileReferences(options.attachment, options.driveFile)
+  if (attachments.length > 0) body.attachments = attachments
 
   return body
 }

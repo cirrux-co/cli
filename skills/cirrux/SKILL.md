@@ -1,6 +1,6 @@
 ---
 name: cirrux
-description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (find by name, get a link, list, download, upload, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events, accept or decline an invitation), tasks (read, add, change, complete and delete the to-dos on a user's task lists, such as Reminders, and list, create, rename and delete those lists), contacts (look someone's email address, phone or company up), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, create or revoke its public link, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
+description: Use this skill when the user wants to interact with their Cirrux email (mailboxes and their addresses/aliases, threads, emails, attachments), Drive files (find by name, get a link, list, download, upload, save an email attachment, trash, delete), calendars (list calendars, read what is on a day or week, create/update/delete events, accept or decline an invitation), tasks (read, add, change, complete and delete the to-dos on a user's task lists, such as Reminders, and list, create, rename and delete those lists), contacts (look someone's email address, phone, address or company up; create, update and delete contacts), or Cirrux Docs documents (find, read with its comments and suggestions, edit, attach files and images to and download them from, suggest changes to, comment on, accept or reject suggestions in, create, rename, trash and restore a document, create or revoke its public link, including one the user shared a docs.cirrux.co link to) via the cirrux CLI. Covers authentication, output modes, exit codes, and the full command tree with composable workflows.
 ---
 
 # Cirrux CLI
@@ -320,15 +320,23 @@ cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown reply.md --in-reply
 cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown note.md --forward <email-uuid> \
   --to bob@example.com                                               # forward
 
+# Attach files already in Cirrux, by uuid (either mode, repeatable)
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --to alice@example.com \
+  --attachment <attachment-uuid> --drive-file <file-uuid>            # an email's attachment, a Drive file
+
 # Change a draft: only what you pass changes
 cirrux draft update <draft-uuid> --markdown body.md                    # new body; a quoted original stays
 cat body.md | cirrux draft update <draft-uuid> --markdown -            # new body from stdin
 cirrux draft update <draft-uuid> --subject "Updated plan" \
   --to alice@example.com --to "Bob <bob@example.com>"                 # replaces the whole To list
 cirrux draft update <draft-uuid> --clear-cc                            # drop every Cc (also --clear-bcc)
+cirrux draft update <draft-uuid> --add-drive-file <file-uuid>          # attach one more file; the rest stay
+cirrux draft update <draft-uuid> --remove-attachment <attachment-uuid> # take one of the draft's attachments off
 
 cirrux draft delete <draft-uuid>                                       # delete a draft
 cirrux draft send <draft-uuid>                                         # send a draft immediately
+cirrux draft send <draft-uuid> --at "+2h"                              # schedule the send for later
+cirrux draft send <draft-uuid> --at "tomorrow 9am"                     # same, human time
 
 # Reminders — "follow up if they don't reply"
 cirrux draft create --mailbox-uuid <mailbox-uuid> --file message.eml \
@@ -350,11 +358,11 @@ cirrux draft send <draft-uuid> --remind-at "+3d" --remind-if-no-reply  # set at 
 
 **Markdown drafts carry no signature.** If the user wants their signature on a message, build the full MIME message (signature included) and pass it via `--file` / stdin instead.
 
-**Attachments on outgoing mail:** there is no `--attach` flag, and markdown mode cannot carry files of your own (`--forward` copies the original's attachments, nothing more). The **only** way to send any other attachment is to build a complete, valid MIME message yourself (a `multipart/mixed` body with each file as a base64-encoded part, `Content-Disposition: attachment`) and pass it via `--file` / stdin. When you do, the backend decodes and stores those parts, so the resulting draft sends normally. A malformed or truncated MIME will either be rejected or silently drop the part, so supply well-formed MIME. The `attachment` commands below are download-only and do not add files to a draft.
+**Attachments on outgoing mail.** Attach files that are already in Cirrux by uuid: `--attachment <attachment-uuid>` for an attachment of any email the user can read (`cirrux email get <email-uuid> --json` lists them), `--drive-file <file-uuid>` for a Drive file (`cirrux drive search` finds it). Both are repeatable and work in either mode. The server copies the files, so nothing is downloaded or re-uploaded and their size doesn't matter, up to 25 MB a file and 35 MB for all of a draft's attachments together. **Never download an attachment just to put it in a MIME message: name it instead.** A file that is only on this computer goes into Drive first (`cirrux drive upload --file`), then onto the draft with `--drive-file`. Every file is checked before anything is written, so a draft is either created with all of them or not at all: a missing one is 404 `attachment_not_found` / `drive_file_not_found` (exit `3`), and one that can't be used is a 422 saying why (`not_uploaded`, `infected`, `missing_object`, `trashed`, `too_large`; exit `2`). A Drive file needs the `drive.read` scope as well. The response lists the draft's `attachments`, each with its `uuid`. Building a full MIME message with base64 parts (`--file` / stdin) still works, but only for a file that exists nowhere in Cirrux.
 
 Supply `--in-reply-to <email-uuid>` (in either mode) to link the draft to a parent email. In MIME mode you write the `To:` and `Subject: Re: ...` headers yourself; in markdown mode the server derives them (see above). The draft joins the parent's thread, so `--mailbox-uuid` must be the parent's mailbox (read it with `cirrux email get <email-uuid> --json | jq -r .mailbox_uuid`); any other mailbox is rejected with 422 (`mailbox_mismatch`) and the error names the right one. The response is the new draft (uuid, headers, body_html, body_text, labels include `draft`).
 
-**Updating a draft.** `draft update <draft-uuid>` changes a draft in place, so there is no need to delete and recreate it to fix a typo or add a recipient. Only the flags you pass change; everything else stays as it was. `--to`, `--cc` and `--bcc` each replace that whole list (pass every address you want to keep), and `--clear-cc` / `--clear-bcc` empty one (combining `--cc` with `--clear-cc` is a usage error). `--subject` sets the subject. `--markdown <path>` (or `-` for stdin) replaces the part of the body the author wrote and keeps the quoted original of a reply or the forwarded message below it; no signature is added. Passing no flag at all is a usage error (exit `2`). The response is the updated draft, the same shape as `draft create` returns. A draft that is scheduled to send, or is being sent, can't be updated: 422 `already_scheduled` (exit `5`), so cancel the scheduled send in the app first. Updating an email that isn't a draft returns 422 `not_a_draft` (exit `2`), and a bad address 422 `invalid_value`.
+**Updating a draft.** `draft update <draft-uuid>` changes a draft in place, so there is no need to delete and recreate it to fix a typo or add a recipient. Only the flags you pass change; everything else stays as it was. `--to`, `--cc` and `--bcc` each replace that whole list (pass every address you want to keep), and `--clear-cc` / `--clear-bcc` empty one (combining `--cc` with `--clear-cc` is a usage error). `--subject` sets the subject. `--markdown <path>` (or `-` for stdin) replaces the part of the body the author wrote and keeps the quoted original of a reply or the forwarded message below it; no signature is added. `--add-attachment` and `--add-drive-file` attach more files (as on `draft create`) and keep the ones already there, so adding a file to a forward never drops the forwarded attachments; `--remove-attachment <attachment-uuid>` takes one of the draft's own attachments off (any other uuid is 422 `invalid_value`). Passing no flag at all is a usage error (exit `2`). The response is the updated draft, the same shape as `draft create` returns. A draft that is scheduled to send, or is being sent, can't be updated: 422 `already_scheduled` (exit `5`), so cancel the scheduled send in the app first. Updating an email that isn't a draft returns 422 `not_a_draft` (exit `2`), and a bad address 422 `invalid_value`.
 
 `draft delete` returns 204 with no body. Deleting an email that isn't a draft returns 422 (`not_a_draft`); deleting a non-existent draft returns 404.
 
@@ -362,9 +370,11 @@ Supply `--in-reply-to <email-uuid>` (in either mode) to link the draft to a pare
 
 `draft send` requires the `email.send` OAuth scope (separate from `email.write`) — if the CLI was logged in before send was supported, run `cirrux logout && cirrux login` to re-grant. The response is the resulting email (no longer a draft: `sent` label applied, `draft` label removed). The draft must have at least one recipient; sending one with no `To`/`Cc`/`Bcc` returns 422 (`invalid_value`). Sending a non-draft returns 422 (`not_a_draft`); a draft with a future `send_draft_at` already scheduled returns 422 (`already_scheduled`).
 
+**Send later.** `--at <when>` schedules the send instead of sending now, taking the same time formats as `--remind-at` (`+2h`, `tomorrow 9am`, `monday`, an ISO 8601 timestamp); it must resolve to the future or it's a usage error (exit `2`), and a past/`now` time in the request body is 422 (`invalid_value`). The response is then the **scheduled draft** (a `draft` object with `send_at` set), not a sent email — the message goes out at that time on its own. Running `draft send --at` again with a new time reschedules it; a reminder (`--remind-at`) can ride along and arms when the message actually goes. To cancel a scheduled send, `draft delete` it.
+
 ### Attachment
 
-These commands are **download-only** (reading attachments off received mail). To *send* an attachment, embed it in a MIME message passed to `draft create --file` — see the note under [Draft](#draft).
+These commands read attachments off received mail. To *send* one, attach it to a draft by uuid with `draft create --attachment` (see [Draft](#draft)); to keep one in Drive, `cirrux drive upload --attachment <attachment-uuid>`. Neither downloads the file.
 
 ```bash
 cirrux attachment get <attachment-uuid>                # attachment metadata (filename, content-type, size)
@@ -375,7 +385,7 @@ cirrux attachment download <attachment-uuid> --json    # JSON with base64url-enc
 ### Drive
 
 ```bash
-cirrux drive search "acme contract"                # find files and folders by name, anywhere the user can see
+cirrux drive search "acme contract"                # find files, folders and documents by name, anywhere the user can see
 cirrux drive search "contract type:pdf" --folder <folder-uuid>   # only under one folder (and its subfolders)
 cirrux drive list                                  # list folders + files at the root
 cirrux drive list <folder-uuid>                    # list folders + files inside one folder (single level)
@@ -386,6 +396,7 @@ cirrux drive download <file-uuid> --json            # JSON with base64url-encode
 cirrux drive upload --file ./report.pdf             # upload to the root (filename from the path)
 cirrux drive upload <folder-uuid> --file ./a.png    # upload into a folder
 cirrux drive upload --file ./a.bin --name out.bin --content-type application/octet-stream
+cirrux drive upload <folder-uuid> --attachment <attachment-uuid>   # save an email attachment (an invoice) to Drive, copied on the server
 cirrux drive replace <file-uuid> --file ./report-v2.pdf   # replace a file's contents, keeping its UUID
 cirrux drive trash <file-uuid>                      # move a file to the trash (reversible, idempotent)
 cirrux drive delete <file-uuid>                     # delete a file (idempotent)
@@ -410,21 +421,23 @@ cirrux drive share revoke <file-uuid>               # revoke the public link (--
 
 `cirrux drive share create` returns the public URL (`drive.cirrux.co/s/<token>`). The link's `status` starts as `pending` while Cirrux prepares the link. Use `--folder` on any `share` command to target a folder instead of a file. Revoking the link (or deleting the file/folder) invalidates the link immediately.
 
-**Finding a file: `cirrux drive search`.** It searches **names** (not what is inside files) across everything the user can see, their own Drive and what is shared with them, in one list ranked by how well the name matches, then newest first. Each line is `uuid`, name (folders with a trailing `/`), where it sits (`My Drive / Clients / Acme` or `Shared with me / ...`) and its **link in the Drive app**. When the user asks for a link to a file, that URL is the answer: it opens the file for anyone it is shared with and lets anyone else request access. `drive get` prints the same link last, and `--json` carries it as `url`. Every word must appear in the name, in any order, and part of a word is enough (`budg` finds `Budget 2026.xlsx`); case and accents don't matter. It uses the same query language as mail search (`OR`, brackets, `-`, quoted phrases), with Drive's own operators:
+**Finding a file: `cirrux drive search`.** It searches **names** (not what is inside files) across everything the user can see, their own Drive and what is shared with them, in one list ranked by how well the name matches, then newest first. Cirrux Docs documents are found by their title too, so this is also how to find a document without its link. Each line is `uuid`, name (folders with a trailing `/`, a document by its title), where it sits (`My Drive / Clients / Acme` or `Shared with me / ...`) and its **link in the Drive app** (for a document, in Docs; read it with `cirrux docs read <uuid>`). In `--json` a document is `"object": "document"` with a `title` rather than a `name`. When the user asks for a link to a file, that URL is the answer: it opens the file for anyone it is shared with and lets anyone else request access. `drive get` prints the same link last, and `--json` carries it as `url`. Every word must appear in the name, in any order, and part of a word is enough (`budg` finds `Budget 2026.xlsx`); case and accents don't matter. It uses the same query language as mail search (`OR`, brackets, `-`, quoted phrases), with Drive's own operators:
 
 | Operator | Example |
 | --- | --- |
-| `type:` | `type:pdf`, `type:folder`, also `image`, `spreadsheet`, `presentation`, `document` (Word and the like), `text`, `video`, `audio`, `archive` |
+| `type:` | `type:pdf`, `type:folder`, also `image`, `spreadsheet`, `presentation`, `document` (Cirrux Docs documents, Word and the like), `text`, `video`, `audio`, `archive` |
 | `owner:` | `owner:me`, `owner:jan` (a name or address) |
 | `is:shared` | items shared with someone |
 | `in:trash` | search the trash instead (trashed items are left out otherwise) |
 | `after:` / `before:` | when it last changed: `after:2026-01-01 before:2026-04-01` |
-| `larger:` / `smaller:` | `larger:10M`, `smaller:500K` |
+| `larger:` / `smaller:` | `larger:10M`, `smaller:500K` (files only) |
 | `name:` | the name only: `name:budget` |
 
 Put the kind of file in `type:`, not in the words: `"contract type:pdf"`, not `"contract pdf"`. Use `OR` for synonyms: `"(contract OR agreement) type:pdf"`. An empty query (`cirrux drive search ""`) lists the top level, or `--folder`'s contents. Page with `--limit` and `--cursor`. A query that can't be read exits `2` with what to fix.
 
 `cirrux drive download` writes raw bytes to stdout (like `attachment download`) — pipe to a file with `> out`, or use `--output <path>` to stream straight to a file (preferred for large files). Listing is **single-level, folder by folder** — folders print with a trailing `/`, then files; there's no recursive tree. Upload and download are capped at **2 GB** per file.
+
+`cirrux drive upload --attachment <attachment-uuid>` saves an email attachment (an invoice, a signed contract) to Drive instead of a local file: the server copies it, so nothing is downloaded. The name and content type default to the attachment's (`--name` overrides). It needs the `email.read` scope next to `drive.create`, and is capped at 100 MB. A missing attachment is 404 `attachment_not_found` (exit `3`), and a taken name is `name_taken` (exit `5`), as for any upload.
 
 `drive trash` / `drive delete` and `drive rename` / `drive move` operate on **files**; the matching folder operations live under the `drive folder` noun group (`create` / `get` / `rename` / `move` / `trash` / `delete`). All are idempotent where it makes sense. Trashing a folder trashes everything in it, and restoring the folder brings it all back. Moving a folder into itself or one of its own subfolders fails with exit code `2` (`invalid_move`). Names must be unique within a folder (Drive behaves like a filesystem): an `upload`, `rename`, `move`, or folder `create` that would collide with an existing live item in the destination fails with exit code `5` (`name_taken`) — retry with a different name (`--name` on upload, or a new name argument). A duplicate of a **trashed** item is fine; only live items conflict. Drive needs the `drive.read` / `drive.create` / `drive.update` / `drive.delete` OAuth scopes — rename/move require `drive.update`; if the CLI was logged in before these were added, a Drive command will fail with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
 
@@ -481,7 +494,7 @@ The window defaults to now through 31 days out and may not exceed 366 days. `--f
 
 **For "what is on my calendar today", use `--today`.** It resolves the current date in the window's timezone and asks for exactly that day. `--on <YYYY-MM-DD>` does the same for a named day. Both take their zone from `--timezone` when given, otherwise from the machine running the CLI, and pin it on the request so the date and the day boundaries cannot disagree. They pick a single day, so they cannot be combined with `--from` / `--to` / `--days` (exit code `2`), and `--days` and `--to` remain mutually exclusive with each other.
 
-`cirrux calendar list` returns **one entry per mailbox a calendar is linked to**, because the name, colour and position are per-mailbox. A calendar shared into two of the user's mailboxes appears twice with the same `calendar_uuid` and different `uuid` — pass the `calendar_uuid` (which is what `--quiet` emits) to `events list`. Each line names the mailbox it belongs to (`mailbox_address` in `--json`), which is usually the only thing separating two entries, since most mailboxes call their calendar "Calendar". `role` is `owner` / `editor` / `viewer`; `can_write` says whether writing would be allowed.
+`cirrux calendar list` returns **one entry per mailbox a calendar is linked to**, because the name, colour and position are per-mailbox. A calendar shared into two of the user's mailboxes appears twice with the same `calendar_uuid` and different `uuid` — pass the `calendar_uuid` (which is what `--quiet` emits) to `events list`. The entry's own `uuid` is never an input: passing it fails with exit code `3`, and the error names the `calendar_uuid` to use. Each line names the mailbox it belongs to (`mailbox_address` in `--json`), which is usually the only thing separating two entries, since most mailboxes call their calendar "Calendar". `role` is `owner` / `editor` / `viewer`; `can_write` says whether writing would be allowed.
 
 **The ID you pass to `update` / `delete` decides the scope, and there is no `--scope` flag.** An event UUID means the whole event: for a repeating event that is the entire series, including every occurrence previously edited out of it. An occurrence ID (`<series-uuid>_<recurrence-id>`, exactly as `events list` prints it) means only that one — updating it splits that occurrence out of the series the first time, and deleting it cancels just that date and leaves the rest alone. So take the id from `events list` rather than assembling one, and pick the row you actually mean.
 
@@ -517,7 +530,7 @@ cirrux tasks lists update <task-list-uuid> --name "Errands"    # rename; --color
 cirrux tasks lists delete <task-list-uuid> --yes               # the list AND every task on it
 ```
 
-**A task list is where tasks live**, like a calendar for events. Every mailbox comes with one called "Reminders", and CalDAV apps such as Apple Reminders can add more. The listing prints `task_list_uuid` first, which is the id every task command will take, then the name, the mailbox address and your role. A user with several mailboxes has several lists called "Reminders"; the address tells them apart. A list shared into a mailbox is named after its owner ("Chores from jan") and is read-only when its role is `viewer`.
+**A task list is where tasks live**, like a calendar for events. Every mailbox comes with one called "Reminders", and CalDAV apps such as Apple Reminders can add more. The listing prints `task_list_uuid` first, which is the id every task command will take, then the name, the mailbox address and your role. In `--json` each entry also has a `uuid`, which is that list's entry in one mailbox and is never an input: passing it fails with exit code `3`, and the error names the `task_list_uuid` to use. A user with several mailboxes has several lists called "Reminders"; the address tells them apart. A list shared into a mailbox is named after its owner ("Chores from jan") and is read-only when its role is `viewer`.
 
 **A new list goes in a mailbox the user owns**: their own one in the workspace unless `--mailbox-uuid` names another of theirs. A mailbox they only reach as a member (a shared `info@`, one they are a delegate on) is not found (exit code `3`).
 
@@ -538,18 +551,31 @@ cirrux contacts addressbooks                                   # your addressboo
 cirrux contacts list <addressbook-uuid>                        # every contact in one addressbook
 cirrux contacts search "acme"                                  # match a name, company or email address
 cirrux contacts search "jane" --addressbook-uuid <uuid>        # restrict to one addressbook
-cirrux contacts get <contact-uuid>                             # one contact, with emails and phones
+cirrux contacts get <contact-uuid>                             # one contact: emails, phones, addresses, links, birthday
+cirrux contacts create <addressbook-uuid> --given Jane --family Doe --email work:jane@acme.example --phone cell:+31612345678
+cirrux contacts update <contact-uuid> --title CFO --company "Acme Holding"   # only what you pass changes
+cirrux contacts update <contact-uuid> --from-json contact.json # the whole contact as JSON (- for stdin)
+cirrux contacts delete <contact-uuid> --yes                    # can't be undone
 ```
 
-**A contact lives in an addressbook, and that is the only container.** `list` is keyed on an addressbook uuid, so resolve one with `cirrux contacts addressbooks` first — the same two-step as `cirrux calendar list` then `calendar events list`. Each addressbook carries the `mailbox_uuid` it belongs to plus its `mailbox_address`, which the listing prints — a user with several mailboxes has several addressbooks all named "Contacts", and the address is what tells them apart. There is no `--mailbox-uuid` on any contacts command; match on the address instead.
+**A contact lives in an addressbook, and that is the only container.** `list` and `create` are keyed on an addressbook uuid, so resolve one with `cirrux contacts addressbooks` first — the same two-step as `cirrux calendar list` then `calendar events list`. Each addressbook carries the `mailbox_uuid` it belongs to plus its `mailbox_address`, which the listing prints — a user with several mailboxes has several addressbooks all named "Contacts", and the address is what tells them apart. There is no `--mailbox-uuid` on any contacts command; match on the address instead.
 
-Most users have exactly one addressbook per mailbox, named "Contacts" and marked `is_default` — that is the one a new contact is filed in by the mail client and CardDAV.
+Most users have exactly one addressbook per mailbox, named "Contacts" and marked `is_default` — that is the one a new contact is filed in by the mail client and CardDAV. When the user has several and it isn't clear which they mean, ask.
 
-**Search matches a substring, anywhere, case-insensitively** — across the contact's formatted, given and family names, its company, and every email address on it. So "jan" finds "Janssen", and "acme" finds both a person at Acme and anyone with an `@acme.` address. There is no query language here: operators like `from:` mean nothing, and the whole string is one term. Unscoped it covers every contact the user owns in the workspace; `--addressbook-uuid` narrows it.
+**Search matches a substring, anywhere, case-insensitively and ignoring accents** — across the contact's formatted, given and family names, its company, and every email address on it. So "jan" finds "Janssen", "zoe" finds "Zoë", and "acme" finds both a person at Acme and anyone with an `@acme.` address. Phone numbers are not searched. There is no query language here: operators like `from:` mean nothing, and the whole string is one term. Unscoped it covers every contact the user owns in the workspace; `--addressbook-uuid` narrows it.
 
-Prefer `search` over `list` when the user is looking for someone in particular; `list` is for enumerating an addressbook.
+Prefer `search` over `list` when the user is looking for someone in particular; `list` is for enumerating an addressbook. Search before you `create`: if the person is already there, update them instead of making a second one.
 
-Contacts are **read-only from the CLI**. Reads need the `contacts.read` OAuth scope; a session created before that scope existed fails with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
+Writing a contact:
+
+- **`--email` and `--phone` replace the whole list.** Passing `--phone` once replaces every phone number on the contact. To add one, read the contact first and pass all of them, or use the `--from-json` workflow below. `--email ""` clears the list. (The same pattern as `--attendee` on events.)
+- **Everything else changes only when you pass it**; an empty string clears a field. `--birthday` takes `YYYY-MM-DD`, or `MM-DD` without a year; `update --no-birthday` removes it.
+- **Addresses and links (web, chat, social profiles) are only reachable through `--from-json`**, which takes the contact exactly as `contacts get --json` prints it: edit that JSON and send it back. Lists in it replace the contact's lists too, and every entry keeps its `uuid`, so an entry you change in place stays the same entry. `--from-json` can't be combined with field flags.
+- **The server checks values strictly.** An email must be a whole address, a phone a number (digits, spaces, `+ - ( ) . /`), a web link must start with `https://` or `http://`, and a body field it doesn't know (a typo like `phone_numbers`) is refused rather than ignored. A value the contact already had is kept as it is. A contact must keep a name, a company or an email address.
+- When no entry in an email, phone or address list is marked `preference: 1`, the first one becomes the preferred one.
+- `delete` confirms first, and outside a terminal (which is where you are) it refuses unless you pass `--yes`. Confirm with the user before deleting.
+
+Reads need the `contacts.read` OAuth scope and writes `contacts.write`; a session created before a scope existed fails with exit code `4` and a hint — run `cirrux logout && cirrux login` to re-grant.
 
 ### Docs
 
@@ -592,11 +618,11 @@ cirrux docs share revoke <uuid-or-link>           # the URL stops working; creat
 **Read a document with `docs read`.** `docs get` is metadata only (title, owner, your role `my_role`, the link). `docs read` prints the document as markdown, as it stands right now in the editor.
 
 How `docs read` writes what markdown cannot:
-- **Suggestions** (tracked changes people have proposed but nobody has accepted) are inline CriticMarkup, each followed by a reference: `{++added++}{>>s1<<}`, `{--removed--}{>>s1<<}`, `{~~old~>new~~}{>>s1<<}`, and `{==text==}{>>s1<<}` for a change of formatting. At the start of a block, `{++¶++}{>>s1<<}` means a suggested new paragraph or line break, `{--¶--}` a removed one, and `{==¶==}` a suggested change of block type (a paragraph becoming a heading). The text as it stands today is the text without the `{++…++}` parts and with the `{--…--}` parts; say so when you quote or summarize it, and don't present a suggestion as agreed.
-- **Comments** are not marked in the text. `--comments` lists every open thread after the document: the suggestion it belongs to (`[s1]`) or the text a comment is on, who wrote it, and its messages. A comment "whose text was deleted" is on something no longer in the document; one "on the whole document" is not on any text. Resolved comments and decided suggestions are left out.
+- **Suggestions** (tracked changes people have proposed but nobody has accepted) are inline CriticMarkup, each followed by a reference: `{++added++}{>>s1<<}`, `{--removed--}{>>s1<<}`, `{~~old~>new~~}{>>s1<<}`, and `{==text==}{>>s1<<}` for a change of formatting. At the start of a block, `{++¶++}{>>s1<<}` means a suggested new paragraph or line break, `{--¶--}` a removed one, and `{==¶==}` a suggested change of block type (a paragraph becoming a heading). A suggestion made on text another suggestion adds sits inside it: `{~~old~>{--new--}{>>s2<<}~~}{>>s1<<}{++newer++}{>>s2<<}` is s1 replacing "old" with "new", and s2 replacing that with "newer". The text as it stands today is the text without the `{++…++}` parts and with the `{--…--}` parts; say so when you quote or summarize it, and don't present a suggestion as agreed.
+- **Comments** are not marked in the text. `--comments` lists every open thread after the document: the suggestion it belongs to (`[s1]`) or the text a comment is on, who wrote it (with the agent that wrote it with them, as the Docs app shows it: "Claude for Sam Jansen"), and its messages. A comment "whose text was deleted" is on something no longer in the document; one "on the whole document" is not on any text. Resolved comments and decided suggestions are left out.
 - **Attachments** are `![name](attachment:<uuid>)` (an image) or `[name](attachment:<uuid>)` (a file), alone on their line. Leave those lines as they are when you edit around them. Download one with `cirrux docs download <doc> attachment:<uuid> --output <path>` (the viewer role is enough) when you need what it holds, such as a picture to look at or a PDF to read; without `--output` the raw bytes go to stdout, and `--json` gives the attachment with its file base64url-encoded in `data`. One still uploading, or whose upload failed, exits `5` (`not_uploaded`).
 
-With `--json` you get `revision`, `markdown` and `threads` (each with `uuid`, `kind`, `ref`, `placement` of `attached`/`document`/`detached`, `quote`, `suggested_text`, `author` and `messages` with markdown `body`). `--quiet` prints only the revision.
+With `--json` you get `revision`, `markdown` and `threads` (each with `uuid`, `kind`, `ref`, `placement` of `attached`/`document`/`detached`, `quote`, `suggested_text`, `author`, `co_author` (the agent that wrote it with its author, or null) and `messages` with markdown `body` and their own `co_author`). `--quiet` prints only the revision.
 
 **Edit with `replace`, `insert`, `delete-text`, `write` and `edit`.** Always `docs read` first, and aim every edit at text you quote from what it printed. The loop is read, edit, check: every edit command prints the document after the edit, so look at it before you say it is done.
 - **Quote exactly**, as `docs read` printed it, or as it reads without markup. A quote that is not there (exit `2`, `target_not_found`) or is there more than once (exit `2`, `target_ambiguous`, with each match in the hint) changes nothing. Quote more of the sentence, or pick one with `--occurrence <n|first|last>`, or narrow it with `--before <text>` / `--after <text>` (the text right before or after it). Never guess.
@@ -615,7 +641,7 @@ With `--json` you get `revision`, `markdown` and `threads` (each with `uuid`, `k
   ```
   `replace` and `delete` take the optional `occurrence`, `before` and `after` of the matching commands. `insert` takes exactly one of `after`/`before`, anchored as for `docs insert`, with `"before": "start"` and `"after": "end"` for the ends of the document. `{"type": "set_document", "markdown": "..."}` sets the whole document, as `docs write` does.
 - **Pass `--base-revision <revision you read>`** when what you change depends on what you read. If someone has edited since, the edit is refused (exit `5`, `conflict`) and nothing changes: read again and redo it. With `--json`, the refusal carries the document as it is now.
-- **Edits are plain edits, made as the user.** They leave comments alone: text a `replace` puts inside a comment's words stays in that comment. Don't edit inside `{++…++}` or `{--…--}`: those are people's suggestions, to accept or reject.
+- **Edits are plain edits, made as the user.** They leave comments alone: text a `replace` puts inside a comment's words stays in that comment. Don't edit inside `{++…++}`, `{--…--}` or `{~~…~~}`: those are people's suggestions, to accept or reject. An edit that would change one is refused (exit `2`, `changes_suggestion`) and changes nothing: accept or reject it first, or suggest your change instead.
 - People with the document open see the edit at once.
 
 **Attach files and images with `docs attach`** (editor role). `cirrux docs attach <doc> <file> --after <anchor>` (or `--before`, `--at start|end`, anchored as for `insert`) uploads the file and places it as one more edit, then prints the document after it. A PNG, JPEG, GIF or WebP shows in the page; anything else (a PDF, a spreadsheet) is a file card people download. The type is read from the bytes, so naming a file `.png` changes nothing. `--name` sets the name it shows with.
@@ -625,11 +651,11 @@ With `--json` you get `revision`, `markdown` and `threads` (each with `uuid`, `k
 
 **What markdown a document holds.** `insert`, `write`, `edit` and a `replace`'s `with` take markdown, but a document only holds some of it. Anything else is accepted without an error and quietly flattened, so check your markdown against this list before you send it:
 - **Supported:** paragraphs, headings `#` to `######`, bullet and numbered lists (nested too), checklists as GitHub task lists (`- [ ] open`, `- [x] done`), `>` quotes, `---` horizontal rules, `**bold**`, `*italic*`, `<u>underline</u>`, `~~strikethrough~~`, `` `inline code` ``, `[links](https://…)`, text color as `<span data-color="red">red</span>` and a highlight as `<mark data-color="yellow">marked</mark>` (the colors are gray, red, orange, yellow, green, teal, blue, purple and pink; any other is dropped, and `docs read` shows a document's colors the same way, so keep them when you rewrite colored text), and line breaks inside a paragraph or item, written as a backslash or two spaces at the end of the line (or `<br>`).
-- **Not supported, and what becomes of it:** a **table** stays as its text, pipes and all, in one paragraph; a **fenced code block** becomes its lines as inline code, and its language is dropped; an **image by URL** becomes a link to it (only an `attachment:<uuid>` of this document stays an attachment: add pictures with `docs attach`); a **link** that is not `http`, `https`, `mailto`, `tel` or relative (`javascript:`, `data:`, another document's `attachment:`) keeps its words and loses the link; **raw HTML** other than the tags above becomes its text; footnotes and definition lists are not markdown here at all.
+- **Not supported, and what becomes of it:** a **table** stays as its text, pipes and all, in one paragraph; a **fenced code block** becomes its lines as inline code, and its language is dropped; an **image by URL** becomes a link to it (only an `attachment:<uuid>` of this document stays an attachment: add pictures with `docs attach`); a **link** that is not `http`, `https`, `mailto`, `tel` or relative (`javascript:`, `data:`, another document's `attachment:`) keeps its words and loses the link; **raw HTML** other than the tags above becomes its text, while angle brackets around anything that is not an HTML tag stay as written (`<placeholder>`, `List<String>`); footnotes and definition lists are not markdown here at all.
 - **Write those another way:** a table as a list (one item per row, `**Label:** value`) or as short paragraphs; code as inline code, a line each. If the user asked for a table, say that Docs cannot hold one yet rather than leave a mangled one behind.
 
 **Suggest with `--suggest`** on `replace`, `insert`, `delete-text` and `edit` (the commenter role is enough). The change is not made: it shows in the editor as a suggestion, with a card people accept or reject. **Prefer suggesting over editing when the user asked you to review, propose, improve or tighten a document someone else will read, or when you only have the commenter role**; edit outright when the user asked you to make the change, or the document is theirs alone to write.
-- What it would take out stays, marked for removal, and what it brings in is added, marked. Quotes, `--occurrence`, `--before`, `--after` and `--base-revision` work as for an edit.
+- What it would take out stays, marked for removal, and what it brings in is added, marked. A `replace` that keeps the words and only adds formatting (`"Item one"` → `"**Item one**"`) is suggested as a change of formatting, `{==**Item one**==}{>>s1<<}`. Quotes, `--occurrence`, `--before`, `--after` and `--base-revision` work as for an edit.
 - **Each change is its own suggestion**, decided on its own, and `edit --suggest` makes one per operation. Keep each one a single reviewable change: suggest a sentence rewrite as one `replace`, not as a `delete` plus an `insert`.
 - **Say why with `--comment <markdown>`** (in `edit --operations`, a `"comment"` field on each operation). It is the first message on the suggestion's card. Do it whenever the reason is not obvious from the change itself.
 - A `delete-text --suggest` of a whole paragraph takes its break too, so accepting it leaves no empty line.
@@ -680,7 +706,7 @@ Supported query operators (ANDed by default, prefix with `-` to negate):
 | `is:starred` / `is:unstarred` | `is:starred`                                                                 |
 | `is:replied`                  | `is:replied`                                                                 |
 | `has:attachment`              | `has:attachment`                                                             |
-| `in:`                         | `in:inbox`, `in:sent`, `in:drafts`, `in:archive`, `in:trash`, `in:spam`, `in:snoozed`, `in:starred` |
+| `in:`                         | `in:inbox`, `in:sent`, `in:drafts`, `in:scheduled`, `in:archive`, `in:trash`, `in:spam`, `in:snoozed`, `in:starred` |
 | `label:`                      | `label:Receipts`, `label:"Project X"`, `label:project-x`, `-label:done`      |
 | `after:` / `before:`          | `after:2026-01-01 before:2026-04-01`                                         |
 | `larger:` / `smaller:`        | `larger:10M`, `smaller:500K` (the message's size; K, M, G)                   |
@@ -760,6 +786,17 @@ cirrux calendar events update "$cal" "$occ" \
 ```bash
 cirrux contacts search "jane" --quiet | head -1 | xargs cirrux contacts get
 ```
+
+**Add a phone number without losing the ones a contact already has:**
+
+```bash
+uuid=$(cirrux contacts search "jane doe" --quiet | head -1)
+cirrux contacts get "$uuid" --json \
+  | jq '.phones += [{"phone": "+31 6 1234 5678", "types": ["cell"]}]' \
+  | cirrux contacts update "$uuid" --from-json -
+```
+
+The same edit-the-JSON pattern adds an address (`.addresses += [{"street": "...", "city": "..."}]`) or a link (`.links += [{"kind": "url", "url": "https://...", "label": "Homepage"}]`).
 
 **Pull a week as JSON, keeping only the timed meetings the user has to attend:**
 
@@ -925,4 +962,4 @@ cirrux thread list "$mb" --label snoozed --json | jq -r '.data[] | "\(.snooze_un
 - When the user asks about "the latest email" or "this thread", resolve the UUID by listing first (e.g. `thread list --limit 1`) rather than assuming one.
 - For anything finding-by-content ("emails from X", "unread invoices", "that thread about the contract"), reach for `thread search` / `email search` before listing — search is faster than paginating `thread list`.
 - **Resolve the mailbox before searching.** When the user names a mailbox (an address, an alias, or any identifier in their request), run `cirrux mailbox list` first and pass `--mailbox-uuid <uuid>` on every subsequent search. Unscoped search across mailboxes the user can access wastes a call and returns noise. The only time to skip this is when the user explicitly asks across mailboxes ("anything unread anywhere from Alice").
-- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, the same verbs for whole conversations (`thread archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `read` / `unread` / `flag` / `unflag` / `move`, `thread labels add` / `remove`), `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox addresses create` / `update` / `delete` for a mailbox's addresses (aliases), `mailbox filters create` / `update` / `delete` for server-side filter rules, `email snooze` / `unsnooze` and `thread snooze` / `unsnooze` for wake-ups, `draft create` / `draft update` / `draft delete` / `draft send` for drafts (both `create` and `send` accept `--remind-at`), and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments, and `--suggest` on the content commands with `docs suggestions accept` / `reject` / `withdraw` for suggestions. Contact writes are not yet exposed — say so rather than fabricating commands.
+- Mutations available today: `email read` / `unread` / `flag` / `unflag`, the move verbs (`email archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `move`), `email labels add` / `labels remove` for custom labels, the same verbs for whole conversations (`thread archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `read` / `unread` / `flag` / `unflag` / `move`, `thread labels add` / `remove`), `mailbox labels create` / `update` / `delete` for managing the labels themselves, `mailbox addresses create` / `update` / `delete` for a mailbox's addresses (aliases), `mailbox filters create` / `update` / `delete` for server-side filter rules, `email snooze` / `unsnooze` and `thread snooze` / `unsnooze` for wake-ups, `draft create` / `draft update` / `draft delete` / `draft send` for drafts (both `create` and `send` accept `--remind-at`), and for Drive: `drive upload` / `replace` / `trash` / `delete` / `rename` / `move` for files, `drive folder create` / `get` / `rename` / `move` / `trash` / `delete` for folders, and `drive share create` / `get` / `revoke` for public links, `calendar events create` / `update` / `delete` for calendar events, `docs create` / `rename` / `trash` / `restore` for documents, and `docs replace` / `insert` / `delete-text` / `write` / `edit` for their content, `docs comments add` / `reply` / `edit` / `resolve` / `reopen` / `delete` for comments, `--suggest` on the content commands with `docs suggestions accept` / `reject` / `withdraw` for suggestions, `tasks create` / `update` / `complete` / `reopen` / `delete` for tasks and `tasks lists create` / `update` / `delete` for task lists, and `contacts create` / `update` / `delete` for contacts.

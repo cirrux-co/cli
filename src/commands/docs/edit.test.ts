@@ -96,8 +96,11 @@ test('suggesting prints the document, then each suggestion it made', () => {
     suggested_text: 'Friday',
     suggested_format: null,
     author,
+    co_author: null,
     created_at: '2026-10-02T10:00:00.000Z',
-    messages: [{ uuid: 'm-1', author, body: 'The invite says Friday.\n', created_at: '2026-10-02T10:00:00.000Z', edited_at: null }],
+    messages: [
+      { uuid: 'm-1', author, co_author: null, body: 'The invite says Friday.\n', created_at: '2026-10-02T10:00:00.000Z', edited_at: null },
+    ],
   }
   const earlier = { ...suggestion, uuid: 's-old', ref: 's1', quote: 'soon', suggested_text: null, messages: [] }
 

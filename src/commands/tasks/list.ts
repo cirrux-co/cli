@@ -107,9 +107,6 @@ export async function tasksListCommand(options: TasksListOptions): Promise<void>
       ...deferred(() => formatTaskList(response, listNames)),
     })
   } catch (error) {
-    handleTasksError(error, options, {
-      action: 'List tasks',
-      notFound: options.list ? `Task list '${options.list}' not found.` : undefined,
-    })
+    handleTasksError(error, options, { action: 'List tasks' })
   }
 }

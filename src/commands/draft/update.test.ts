@@ -106,3 +106,32 @@ test('readMarkdownInput reads the body from a file path', async () => {
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('attachments are added and removed, never sent as a replacement list', () => {
+  expect(
+    buildDraftUpdateBody({ addAttachment: ['att-1'], addDriveFile: ['file-1'], removeAttachment: ['old-1'] }),
+  ).toEqual({
+    add_attachments: [{ attachment_uuid: 'att-1' }, { drive_file_uuid: 'file-1' }],
+    remove_attachment_uuids: ['old-1'],
+  })
+  expect(buildDraftUpdateBody({ addAttachment: [], addDriveFile: [], removeAttachment: [] })).toEqual({})
+})
+
+test('changing only the attachments is an update', () => {
+  expect(draftUpdateUsageError({ addDriveFile: ['file-1'] })).toBeNull()
+  expect(draftUpdateUsageError({ removeAttachment: ['old-1'] })).toBeNull()
+  expect(draftUpdateUsageError({ addAttachment: [], removeAttachment: [] })).toMatch(/--add-attachment/)
+})
+
+test('a missing Drive file never reads as the draft being missing', () => {
+  const body = JSON.stringify({ error: 'drive_file_not_found', error_description: 'Drive file file-1 not found.' })
+  const result = classifyApiError(new ApiError(404, body), {
+    action: 'Update draft',
+    notFound: "Draft 'd-1' not found.",
+    rules: DRAFT_UPDATE_ERROR_RULES,
+  })
+
+  expect(result.code).toBe(ExitCode.NOT_FOUND)
+  expect(result.message).toBe('Update draft failed: Drive file file-1 not found.')
+  expect(result.hint).toContain('cirrux drive search')
+})

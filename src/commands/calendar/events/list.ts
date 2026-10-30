@@ -234,9 +234,6 @@ export async function calendarEventsListCommand(
       ...deferred(() => formatCalendarEvents(response)),
     })
   } catch (error) {
-    handleCalendarError(error, options, {
-      action: 'List events',
-      notFound: calendarUuid ? `Calendar '${calendarUuid}' not found.` : 'Calendar not found.',
-    })
+    handleCalendarError(error, options, { action: 'List events' })
   }
 }
