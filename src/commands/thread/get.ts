@@ -7,7 +7,7 @@ import { formatDate, formatSender } from './list.js'
 interface EmailAttachment {
   object: string
   uuid: string
-  filename: string
+  filename: string | null
   content_type: string
   file_size_bytes: number
 }

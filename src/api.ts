@@ -1,3 +1,4 @@
+import { resolveApiKey } from './api-key.js'
 import { getActiveCredentials, saveWorkspaceCredentials } from './config.js'
 
 const DEFAULT_API_URL = 'https://api.cirrux.co/'
@@ -46,6 +47,8 @@ export class ApiError extends Error {
    * headers (Retry-After / X-RateLimit-Reset). Undefined when the server gave
    * no hint, in which case callers fall back to exponential backoff. */
   retryAfterMs?: number
+  /** Where the API key the request carried came from (`--api-key`, `CIRRUX_API_KEY`); null for a login's token. */
+  apiKeySource: string | null = null
 
   constructor(status: number, body: string, retryAfterMs?: number) {
     const description = parseApiErrorDescription(body)
@@ -257,6 +260,17 @@ async function refreshAccessToken(): Promise<void> {
 }
 
 async function withAccessToken<T>(run: (token: string) => Promise<T>): Promise<T> {
+  const apiKey = resolveApiKey()
+  if (apiKey) {
+    // A key has nothing to refresh: a 401 means it was revoked or mistyped.
+    try {
+      return await run(apiKey.key)
+    } catch (err) {
+      if (err instanceof ApiError) err.apiKeySource = apiKey.source
+      throw err
+    }
+  }
+
   const creds = getActiveCredentials()
   if (!creds) {
     throw new AuthRefreshFailedError('Not logged in.')

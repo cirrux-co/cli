@@ -1,6 +1,10 @@
+import { apiKeyStillInUseNotice } from '../api-key.js'
 import { getActiveCredentials, readCredentials, writeCredentials } from '../config.js'
 
 export function logoutCommand(): void {
+  const notice = apiKeyStillInUseNotice()
+  if (notice) process.stderr.write(`${notice}\n`)
+
   const active = getActiveCredentials()
   if (!active) {
     console.log('Not logged in.')

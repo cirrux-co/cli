@@ -1,4 +1,5 @@
 import { offerAgentSetup } from '../agent-setup.js'
+import { apiKeyStillInUseNotice } from '../api-key.js'
 import { login } from '../auth.js'
 import { ExitCode } from '../exit-codes.js'
 import { outputError } from '../output.js'
@@ -14,6 +15,9 @@ export async function loginCommand(options: { browser?: boolean; json?: boolean 
       errorType: 'login_failed',
     })
   }
+
+  const notice = apiKeyStillInUseNotice()
+  if (notice) process.stderr.write(`${notice}\n`)
 
   if (!options.json && process.stdin.isTTY && process.stdout.isTTY) {
     await offerAgentSetup()

@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import { AGENTS, detectAgents, type Agent } from '../agents.js'
 import { ApiError, AuthRefreshFailedError, authedRequest } from '../api.js'
+import { API_KEY_COMMANDS, API_KEY_PREFIX, API_KEYS_ADMIN_URL, type ApiKey, looksLikeApiKey, resolveApiKey } from '../api-key.js'
 import { getActiveCredentials } from '../config.js'
 import { ExitCode } from '../exit-codes.js'
 import { output, type OutputOptions } from '../output.js'
@@ -32,10 +33,34 @@ export type SignInResult =
   | { state: 'signed_out' }
   | { state: 'expired' }
   | { state: 'unreachable'; reason: string }
+  | { state: 'api_key'; source: string; howToStop: string; workspace: string | null }
+  | { state: 'api_key_rejected'; source: string }
+  | { state: 'api_key_malformed'; source: string }
 
 export function signInCheck(result: SignInResult): DoctorCheck {
   const name = 'Signed in'
   switch (result.state) {
+    case 'api_key':
+      return {
+        name,
+        status: 'pass',
+        message: `API key from ${result.source}${result.workspace ? ` (${result.workspace})` : ''}`,
+        hint: `It works with the ${API_KEY_COMMANDS} commands. ${result.howToStop} for the rest.`,
+      }
+    case 'api_key_rejected':
+      return {
+        name,
+        status: 'fail',
+        message: `The API key from ${result.source} was not accepted`,
+        hint: `A workspace admin can issue a new one at ${API_KEYS_ADMIN_URL}`,
+      }
+    case 'api_key_malformed':
+      return {
+        name,
+        status: 'fail',
+        message: `The value of ${result.source} is not a Cirrux API key`,
+        hint: `API keys start with ${API_KEY_PREFIX}`,
+      }
     case 'signed_in':
       return { name, status: 'pass', message: `${result.username} (${result.workspace})` }
     case 'signed_out':
@@ -81,7 +106,24 @@ export function agentChecks(root: string, detected: Agent[]): DoctorCheck[] {
   )
 }
 
+async function checkApiKey({ key, source, howToStop }: ApiKey): Promise<SignInResult> {
+  if (!looksLikeApiKey(key)) return { state: 'api_key_malformed', source }
+  try {
+    const workspace = await authedRequest<{ name: string }>('public_api/v1/workspace')
+    return { state: 'api_key', source, howToStop, workspace: workspace.name }
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return { state: 'api_key_rejected', source }
+    // Accepted, only without the workspace.read permission.
+    if (error instanceof ApiError && error.errorCode === 'insufficient_scope') {
+      return { state: 'api_key', source, howToStop, workspace: null }
+    }
+    return { state: 'unreachable', reason: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 async function checkSignIn(): Promise<SignInResult> {
+  const apiKey = resolveApiKey()
+  if (apiKey) return checkApiKey(apiKey)
   if (!getActiveCredentials()) return { state: 'signed_out' }
   try {
     const profile = await authedRequest<{ user?: { username: string }; workspace?: { name: string } }>(

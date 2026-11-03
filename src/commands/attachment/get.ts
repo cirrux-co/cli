@@ -6,7 +6,8 @@ import { requireCredentials } from '../../session.js'
 interface EmailAttachment {
   object: string
   uuid: string
-  filename: string
+  /** Null when the MIME part names no file, as a calendar invitation's text/calendar part often does. */
+  filename: string | null
   content_type: string
   file_size_bytes: number
 }
@@ -24,7 +25,7 @@ export async function attachmentGetCommand(uuid: string, options: OutputOptions)
       text: () =>
         [
           `UUID:         ${attachment.uuid}`,
-          `Filename:     ${attachment.filename}`,
+          `Filename:     ${attachment.filename ?? '(no filename)'}`,
           `Content-Type: ${attachment.content_type}`,
           `Size:         ${attachment.file_size_bytes} bytes`,
         ].join('\n'),

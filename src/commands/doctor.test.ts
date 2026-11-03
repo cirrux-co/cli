@@ -22,6 +22,26 @@ test('signInCheck fails with a login hint when signed out or expired', () => {
   expect(signInCheck({ state: 'signed_in', username: 'rick', workspace: 'Cirrux' }).message).toBe('rick (Cirrux)')
 })
 
+test('signInCheck reports an API key, where it came from, what it works with, and a rejected or malformed one', () => {
+  const fromEnv = { source: 'CIRRUX_API_KEY', howToStop: 'Unset CIRRUX_API_KEY' }
+  expect(signInCheck({ state: 'api_key', ...fromEnv, workspace: 'Cirrux' })).toMatchObject({
+    status: 'pass',
+    message: 'API key from CIRRUX_API_KEY (Cirrux)',
+  })
+  expect(signInCheck({ state: 'api_key', ...fromEnv, workspace: null }).message).toBe('API key from CIRRUX_API_KEY')
+  expect(signInCheck({ state: 'api_key', ...fromEnv, workspace: null }).hint).toBe(
+    'It works with the mailbox, thread, email, draft and attachment commands. Unset CIRRUX_API_KEY for the rest.',
+  )
+  expect(signInCheck({ state: 'api_key_rejected', source: '--api-key' })).toMatchObject({
+    status: 'fail',
+    message: 'The API key from --api-key was not accepted',
+  })
+  expect(signInCheck({ state: 'api_key_malformed', source: '--api-key' })).toMatchObject({
+    status: 'fail',
+    hint: 'API keys start with cxk_',
+  })
+})
+
 test('agentChecks passes with no agents detected', () => {
   const checks = agentChecks(mkdtempSync(join(tmpdir(), 'cirrux-doctor-')), [])
 

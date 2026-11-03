@@ -7,7 +7,7 @@ import { formatAddresses } from '../thread/list.js'
 interface EmailAttachment {
   object: string
   uuid: string
-  filename: string
+  filename: string | null
   content_type: string
   file_size_bytes: number
 }
@@ -32,7 +32,7 @@ interface Email {
 export function formatEmailDetail(email: Email): string {
   const cc = email.cc?.length ? formatAddresses(email.cc) : ''
   const attachments = email.attachments?.length
-    ? email.attachments.map((a) => `${a.filename} (${a.content_type}, ${a.file_size_bytes} bytes)`).join(', ')
+    ? email.attachments.map((a) => `${a.filename ?? '(no filename)'} (${a.content_type}, ${a.file_size_bytes} bytes)`).join(', ')
     : 'None'
 
   return [

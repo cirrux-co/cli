@@ -2,6 +2,7 @@
 
 import { Command } from 'commander'
 import { setExplicitCoAuthor } from './api.js'
+import { setExplicitApiKey } from './api-key.js'
 import { loginCommand } from './commands/login.js'
 import { logoutCommand } from './commands/logout.js'
 import { mailboxListCommand } from './commands/mailbox/list.js'
@@ -146,6 +147,7 @@ import { refreshSkillAfterUpgrade } from './skill.js'
 import { checkForUpdate } from './update-check.js'
 import { CLI_VERSION } from './version.js'
 import { commanderExitCode } from './exit-codes.js'
+import { guardApiKey } from './session.js'
 
 const program = new Command()
 
@@ -159,9 +161,23 @@ program
     '--co-author <name>',
     'Tag mutations with a co-author (overrides CIRRUX_CO_AUTHOR; auto-set to "claude" inside Claude Code)',
   )
-  .hook('preAction', (thisCommand) => {
+  .option(
+    '--api-key <key>',
+    'Use a workspace API key instead of the login (overrides CIRRUX_API_KEY; mail commands only)',
+  )
+  .hook('preAction', (thisCommand, actionCommand) => {
     setExplicitCoAuthor(thisCommand.opts().coAuthor as string | undefined)
+    setExplicitApiKey(thisCommand.opts().apiKey as string | undefined)
+    guardApiKey(commandPath(actionCommand), actionCommand.opts() as OutputOptions)
   })
+
+function commandPath(command: Command): string[] {
+  const path: string[] = []
+  for (let current: Command | null = command; current?.parent; current = current.parent) {
+    path.unshift(current.name())
+  }
+  return path
+}
 
 program
   .command('login')
@@ -487,7 +503,7 @@ Every snoozed message in the thread follows the same rules as
 
 const threadVerbs: [ThreadVerb, string][] = [
   ['archive', 'Archive a thread (every message in it)'],
-  ['unarchive', 'Move a thread\'s received messages back to the inbox, archived or filed under a label'],
+  ['unarchive', 'Move a thread\'s messages back to the inbox, archived or filed under a label; sent mail stays in Sent'],
   ['trash', 'Move a thread to the trash (drafts are left alone)'],
   ['untrash', 'Restore a thread from the trash to where it was'],
   ['spam', 'Mark a thread as spam (only mail you received, never your own sent mail)'],
@@ -510,7 +526,7 @@ for (const [verb, description] of threadVerbs) {
 
 thread
   .command('move')
-  .description('Move a thread\'s received messages to a target label (system type or custom label)')
+  .description('Move a thread\'s messages to a target label (system type or custom label); sent mail stays in Sent')
   .argument('<uuid>', 'Thread UUID')
   .option('--type <type>', 'System label type (inbox, archive, trash, junk)')
   .option('--label-uuid <uuid>', 'Custom label UUID (from `cirrux mailbox labels list`)')

@@ -26,6 +26,25 @@ cirrux doctor    # check version, sign-in and agent setup; every failure carries
 
 Commands that hit the API fail with exit code `4` (`AUTH_REQUIRED`) when the user is not logged in. Suggest `cirrux login` in that case.
 
+### Using a workspace API key
+
+For scripts and servers that should not log in, give the CLI a workspace API key: in `CIRRUX_API_KEY`, or with `--api-key <key>` on one command (the flag wins when both are given). A workspace admin issues keys at admin.cirrux.co/api-keys; each is a `cxk_` secret with a fixed set of permissions (Read mail, Modify mail, Send mail, Workspace) and the mailboxes it was issued for.
+
+```bash
+export CIRRUX_API_KEY=cxk_...
+cirrux whoami                      # "API key from CIRRUX_API_KEY", its workspace, and what it works with
+cirrux thread list <mailbox-uuid>  # uses the key; no login needed
+
+cirrux --api-key cxk_... thread list <mailbox-uuid>   # just this command
+```
+
+- **Prefer the environment variable.** A key on the command line is kept in shell history and shown to anyone who can list the machine's processes while the command runs. Never put one the user gave you into a command you show them or save in a script; export it instead.
+- **While a key is given, every command uses it**, even when the CLI is also logged in. `login` and `logout` still work on the stored login and say so when `CIRRUX_API_KEY` is set. Unset it (and leave out `--api-key`) to go back to the login.
+- **A key reaches mail only**: the `mailbox`, `thread`, `email`, `draft` and `attachment` commands, within the mailboxes it was issued for (any other mailbox is not found, exit `3`). It is a workspace's credential, not a person's, so everything else refuses it before reaching the API, with exit `4` and type `api_key_unsupported`: Drive, calendar, tasks, contacts, docs, `feedback`, and adding, changing or deleting a mailbox's addresses (`mailbox addresses list` works). Don't retry those with the key: tell the user they need `cirrux login` (and the key unset).
+- **A missing permission** (sending without Send mail, say) exits `4` with type `insufficient_scope` and names the scope. A key's permissions are set when it is issued, so the fix is a new key, never `cirrux login`.
+- **A rejected key** (revoked or mistyped) exits `4` with type `auth_required`; a value that doesn't start with `cxk_` exits `4` with type `invalid_api_key`. Neither is fixed by logging in. Each message names where the key came from (`--api-key` or `CIRRUX_API_KEY`).
+- `whoami` shows the key's workspace only when the key has the Workspace permission; without it, it still answers and says so. `whoami --json` carries `"auth": "api_key"` with `"api_key_source"` (and `"auth": "login"` for a login).
+
 ### Logging in from an agent / headless machine
 
 On desktop, `cirrux login` opens a browser. On a headless or remote machine (no display, or over SSH) it automatically falls back to the OAuth device-code flow: it prints a short code and a URL, then **blocks in the same process** while polling until the user approves. It exits on its own once approval lands.
@@ -233,7 +252,7 @@ cirrux thread trash <thread-uuid>                      # trash it, drafts except
 cirrux thread spam <thread-uuid>                       # mark what you received as spam (also unspam)
 cirrux thread read <thread-uuid>                       # mark every message read (also unread: the last received one)
 cirrux thread flag <thread-uuid>                       # star its latest message (also unflag: every message)
-cirrux thread move <thread-uuid> --label-uuid <uuid>   # file the received messages under a label (or --type archive)
+cirrux thread move <thread-uuid> --label-uuid <uuid>   # file the thread under a label (or --type archive); sent mail stays in Sent too
 cirrux thread labels add <thread-uuid> --label-uuid <uuid>     # label every received message (labels remove: every message)
 cirrux thread list <mailbox-uuid> --label snoozed      # what's currently snoozed
 ```
@@ -286,7 +305,7 @@ All mutations return the updated email (same shape as `cirrux email get`), so `-
 
 `cirrux email labels add <uuid> --type auto_archive` keeps the email in the inbox and archives it 30 days later (an hourly server job does the archiving, so it can land up to an hour after the 30 days). It only works on an email that is in the inbox; anything else is rejected with a 422 `invalid_state`. Adding it while it is already on is a no-op and does **not** restart the 30 days; to restart, remove it and add it again. Archiving the email by hand drops the pending auto-archive. `auto_archive` is not a location, so `email move --type auto_archive` is rejected. For a whole thread, apply it to each email in the thread that is in the inbox (that is what the web app does). To auto-archive incoming mail, create a filter with an `auto_archive` action instead.
 
-**Thread-level verbs** (`cirrux thread archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `read` / `unread` / `flag` / `unflag` / `move`, `thread labels add` / `remove`, and `thread snooze` / `unsnooze`) act on the whole conversation in one call, touching the same messages the web app would: archive and read cover every message, `unarchive` brings back every received message that is not in the inbox (archived or filed under a label, keeping its labels), `flag` stars the latest one, `unread` marks the last message you received, `spam`, `move` and `labels add` apply to mail you received rather than your own sent mail, and drafts are always left alone. Prefer them over looping over `cirrux thread get --quiet` per email. Each returns the updated thread.
+**Thread-level verbs** (`cirrux thread archive` / `unarchive` / `trash` / `untrash` / `spam` / `unspam` / `read` / `unread` / `flag` / `unflag` / `move`, `thread labels add` / `remove`, and `thread snooze` / `unsnooze`) act on the whole conversation in one call, touching the same messages the web app would: archive and read cover every message, `unarchive` and `move` take every message along, your own sent mail included, which stays in Sent as well (moved to the inbox or a label it is in both, moved to the archive it just leaves the inbox; a single sent email `move`d to `--type junk` is 422), `unarchive` keeps the labels, `flag` stars the latest one, `unread` marks the last message you received, `spam` and `labels add` apply to mail you received rather than your own sent mail, and drafts are always left alone. Prefer them over looping over `cirrux thread get --quiet` per email. Each returns the updated thread.
 
 ### Snooze and reminders
 
@@ -381,6 +400,8 @@ cirrux attachment get <attachment-uuid>                # attachment metadata (fi
 cirrux attachment download <attachment-uuid> > file    # raw bytes to stdout
 cirrux attachment download <attachment-uuid> --json    # JSON with base64url-encoded data
 ```
+
+An attachment's `filename` is `null` when the message names no file, which is common for the `text/calendar` part of an invitation. Text output prints `(no filename)`; pick a name yourself before writing one to disk.
 
 ### Drive
 
@@ -834,7 +855,7 @@ done
 
 ```bash
 cirrux email get <email-uuid> --json \
-  | jq -r '.attachments[] | "\(.uuid)\t\(.filename)"' \
+  | jq -r '.attachments[] | "\(.uuid)\t\(.filename // "attachment-\(.uuid)")"' \
   | while IFS=$'\t' read uuid name; do
       cirrux attachment download "$uuid" > "$name"
     done

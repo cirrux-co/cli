@@ -66,6 +66,29 @@ The single process stays alive between the two lines, so an agent can read the f
 code, and wait for the same process to exit. In `--json` mode progress notices go to stderr, keeping
 stdout to just those two events.
 
+### Using a workspace API key
+
+For a script or server that shouldn't log in, give the CLI a workspace API key instead: in
+`CIRRUX_API_KEY`, or with `--api-key <key>` for a single command (the flag wins over the variable). A
+workspace admin issues keys at [admin.cirrux.co/api-keys](https://admin.cirrux.co/api-keys).
+
+```bash
+export CIRRUX_API_KEY=cxk_...
+cirrux whoami                         # shows it's using the key, and what the key works with
+cirrux thread list <mailbox-uuid> --label inbox
+
+cirrux --api-key cxk_... mailbox list # just this one command
+```
+
+Prefer the variable: a key typed on the command line ends up in your shell history, and anyone who can
+list the machine's processes sees it while the command runs.
+
+While a key is given, every command uses it, even if you're also logged in. A key belongs to the
+workspace, not to a person, so it only works with the mail commands (`mailbox`, `thread`, `email`,
+`draft` and `attachment`), in the mailboxes it was issued for, and with the permissions it was issued
+with. Any other command stops with exit code `4` and says so. Unset the variable (and leave out
+`--api-key`) to use your login again.
+
 ## Usage
 
 ```bash

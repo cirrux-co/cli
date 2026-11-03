@@ -1,3 +1,4 @@
+import { API_KEYS_ADMIN_URL } from './api-key.js'
 import { ApiError, AuthRefreshFailedError } from './api.js'
 import { ExitCode } from './exit-codes.js'
 import { outputError, type OutputOptions } from './output.js'
@@ -97,6 +98,11 @@ export function classifyApiError(error: unknown, context: ApiErrorContext): Erro
     }
   }
 
+  if (error.apiKeySource) {
+    const keyed = classifyApiKeyError(error, error.apiKeySource)
+    if (keyed) return keyed
+  }
+
   if (error.status === 401) {
     return {
       code: ExitCode.AUTH_REQUIRED,
@@ -166,6 +172,31 @@ export function classifyApiError(error: unknown, context: ApiErrorContext): Erro
     message: failed(error.description ?? error.message),
     errorType: 'api_error',
   }
+}
+
+// A key cannot log in again, and its scopes are fixed when it is issued, so the fix for each of
+// these is a different key rather than anything the CLI can do.
+function classifyApiKeyError(error: ApiError, source: string): ErrorClassification | null {
+  if (error.status === 401) {
+    return {
+      code: ExitCode.AUTH_REQUIRED,
+      message: `The API key from ${source} was not accepted.`,
+      errorType: 'auth_required',
+      hint: `It may have been revoked or mistyped. A workspace admin can issue a new one at ${API_KEYS_ADMIN_URL}.`,
+    }
+  }
+
+  if (error.status === 403 && error.errorCode === 'insufficient_scope') {
+    const missing = error.description ? ` ${error.description}.` : ''
+    return {
+      code: ExitCode.AUTH_REQUIRED,
+      message: `This API key is missing a permission this needs.${missing}`,
+      errorType: 'insufficient_scope',
+      hint: `A key's permissions are set when it is issued: a workspace admin can issue one with them at ${API_KEYS_ADMIN_URL}.`,
+    }
+  }
+
+  return null
 }
 
 /**
