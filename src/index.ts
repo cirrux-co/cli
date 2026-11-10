@@ -1361,12 +1361,14 @@ const MARKDOWN_HELP =
   '(- [ ] open, - [x] done), quotes, horizontal rules, bold, italic, <u>underline</u>, ~~strikethrough~~,\n' +
   '`inline code`, links and line breaks (end the line with a backslash or two spaces), and its\n' +
   'attachments: ![name](attachment:<uuid>) alone on a line.\n' +
+  'Tables are GitHub pipe tables: a header row, a delimiter row (| --- | --- |), then rows; at most 20\n' +
+  'columns. A cell is one line: put <br> between its lines, and write a | in it as \\|. A table without a\n' +
+  'header row is written with an empty one.\n' +
   'Text color and highlight are <span data-color="red">red</span> and <mark data-color="yellow">marked</mark>,\n' +
   'in gray, red, orange, yellow, green, teal, blue, purple or pink; any other color is dropped.\n' +
-  'It has no tables or code blocks, and no images from elsewhere: a table stays as its text, pipes and\n' +
-  'all, in one paragraph; a code block becomes lines of inline code without its language; an image by\n' +
-  'URL becomes a link to it. Write those another way: a table as a list, a code block as inline code\n' +
-  "per line, an image with 'cirrux docs attach'."
+  'It has no code blocks, and no images from elsewhere: a code block becomes lines of inline code\n' +
+  'without its language; an image by URL becomes a link to it. Write those another way: a code block\n' +
+  "as inline code per line, an image with 'cirrux docs attach'."
 
 const SUGGEST_OPTION = 'Suggest the change instead of making it (commenter role is enough)'
 const COMMENT_OPTION = 'With --suggest: why, as markdown, the first message on the suggestion'
