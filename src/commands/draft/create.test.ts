@@ -173,3 +173,31 @@ test('an attachment that is not there is not found, in its own words, and says w
   expect(result.message).toBe('Create draft failed: Attachment att-1 not found.')
   expect(result.hint).toContain('cirrux email get')
 })
+
+// Left out, the draft stays unsigned, so nothing is sent for it.
+test('--signature sends the uuid or default as it was given', () => {
+  expect(buildDraftCreateBody({ mailboxUuid: MAILBOX, markdown: 'a.md', signature: 'sig-1' }, 'Hi').signature).toBe(
+    'sig-1',
+  )
+  expect(buildDraftCreateBody({ mailboxUuid: MAILBOX, markdown: 'a.md', signature: 'default' }, 'Hi').signature).toBe(
+    'default',
+  )
+  expect(buildDraftCreateBody({ mailboxUuid: MAILBOX, markdown: 'a.md' }, 'Hi')).not.toHaveProperty('signature')
+})
+
+test('--signature on a MIME draft is a usage error', () => {
+  expect(draftCreateUsageError({ file: 'a.eml', signature: 'default' })).toContain('--signature')
+  expect(draftCreateUsageError({ markdown: 'a.md', signature: 'default' })).toBeNull()
+})
+
+test('a signature that is not there is not found, and says how to find one', () => {
+  const body = JSON.stringify({
+    error: 'signature_not_found',
+    error_description: 'Signature 00000000-0000-0000-0000-0000000005ff not found in this mailbox.',
+  })
+  const result = classifyApiError(new ApiError(404, body), { action: 'Create draft', rules: DRAFT_CREATE_ERROR_RULES })
+
+  expect(result.code).toBe(ExitCode.NOT_FOUND)
+  expect(result.errorType).toBe('signature_not_found')
+  expect(result.hint).toContain('cirrux mailbox signatures list')
+})

@@ -154,6 +154,7 @@ Discover everything with `cirrux --help` and `cirrux <noun> --help`. The stable 
 cirrux mailbox list                              # list mailboxes the user has access to
 cirrux mailbox get <mailbox-uuid>                # mailbox metadata
 cirrux mailbox labels list <mailbox-uuid>        # list system + custom labels (uuid, type, name)
+cirrux mailbox signatures list <mailbox-uuid>    # list signatures (uuid, default or -, mode, name); read-only
 cirrux mailbox labels create <mailbox-uuid> --name "Receipts"          # create a custom label (idempotent on name)
 cirrux mailbox labels update <mailbox-uuid> <label-uuid> --name "Invoices"  # rename a custom label
 cirrux mailbox labels delete <mailbox-uuid> <label-uuid>              # delete a custom label
@@ -343,8 +344,14 @@ cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown note.md --forward <
 cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --to alice@example.com \
   --attachment <attachment-uuid> --drive-file <file-uuid>            # an email's attachment, a Drive file
 
+# Signatures (markdown only): a draft is unsigned unless you ask for one
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --to alice@example.com \
+  --signature default                                                # the mailbox's default signature
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --to alice@example.com \
+  --signature <signature-uuid>                                       # another of the mailbox's signatures
+
 # Change a draft: only what you pass changes
-cirrux draft update <draft-uuid> --markdown body.md                    # new body; a quoted original stays
+cirrux draft update <draft-uuid> --markdown body.md                    # new body; signature and quote stay
 cat body.md | cirrux draft update <draft-uuid> --markdown -            # new body from stdin
 cirrux draft update <draft-uuid> --subject "Updated plan" \
   --to alice@example.com --to "Bob <bob@example.com>"                 # replaces the whole To list
@@ -368,20 +375,27 @@ cirrux draft send <draft-uuid> --remind-at "+3d" --remind-if-no-reply  # set at 
 - **`--file` / stdin**: a full RFC 5322 MIME message (headers + blank line + body). The `From:` header must be one of the mailbox's configured addresses (or its primary address); the API rejects spoofed senders with 422.
 - **`--markdown <path>`**: a markdown file used as the draft body. Headers come from `--subject`, `--to`, `--cc`, `--bcc` (each address is repeatable, `Name <addr>` or just `addr`) and `--from`. The backend renders it as GitHub-flavored markdown (fenced code blocks, `~~strikethrough~~`, tables, and a single newline is a line break, so a two-line sign-off stays on two lines), sets quotes, `--`, `---` and `...` typographically (not inside code), and turns bare `http(s)://` URLs into links; it then converts to the editor's structured body format, and synthesizes the MIME. Bcc is preserved on the draft record but stripped from the rendered MIME, matching webmail compose behavior.
 
-**Markdown replies, forwards and the sender.** These flags only work with `--markdown`; on a MIME draft they are a usage error (exit `2`), because a MIME message carries its own headers. Anything you pass explicitly (`--to`, `--cc`, `--subject`, `--from`) always wins over what the server derives, so pass only what you want to change.
+**Markdown replies, forwards and the sender.** These flags (and `--signature`) only work with `--markdown`; on a MIME draft they are a usage error (exit `2`), because a MIME message carries its own headers and body. Anything you pass explicitly (`--to`, `--cc`, `--subject`, `--from`) always wins over what the server derives, so pass only what you want to change.
 
 - **Reply** (`--in-reply-to <email-uuid>`): with no `--to`/`--cc`, the server addresses the reply the way the mail app does (the original's Reply-To, else its To when the user sent the original, else its From). With no `--subject` it uses `Re: <original subject>`. The original is quoted below your markdown unless you pass `--no-quote-original`. Don't build the `Re:` subject or look the sender up yourself.
 - **Reply all** (`--reply-all`, needs `--in-reply-to`): To and Cc become everyone on the original, minus the user's own addresses. Without `--in-reply-to` it is a usage error.
 - **Forward** (`--forward <email-uuid>`): the subject defaults to `Fwd: <original subject>`, the body is your markdown followed by the forwarded-message block (date, from, to, subject, then the original), and every attachment of the original is copied onto the draft. A forward has no derived recipients, so pass `--to`. It can't be combined with `--in-reply-to` (a usage error).
 - **From** (`--from <address>`): send from one of the mailbox's addresses (aliases; `cirrux mailbox addresses list` shows them). By default a reply goes out from the address the original was sent to, and anything else from the mailbox's active address. An address that doesn't belong to the mailbox is rejected with 422 (`invalid_value`).
 
-**Markdown drafts carry no signature.** If the user wants their signature on a message, build the full MIME message (signature included) and pass it via `--file` / stdin instead.
+**Signatures.** A markdown draft is unsigned unless you pass `--signature`. When the user wants their signature on a message, pass `--signature default` for the mailbox's default one, or `--signature <signature-uuid>` for another. It goes below the markdown, and above the quoted original of a reply or the forwarded message, where the app puts it. **With `--signature`, don't end the markdown with a sign-off or the user's name**, or the draft signs twice. `cirrux mailbox signatures list <mailbox-uuid>` lists them: uuid, `default` or `-`, mode, name (`--json` adds the rendered `html`). Signatures are made and edited in the Cirrux mail app; the CLI only reads them. The flag takes a uuid, never a name (two signatures can share one), so to honour "sign it with my personal signature" look the uuid up by name first:
+
+```bash
+sig=$(cirrux mailbox signatures list "$mb" --json | jq -r '.data[] | select(.name | ascii_downcase == "personal") | .uuid')
+cirrux draft create --mailbox-uuid "$mb" --markdown body.md --to alice@example.com --signature "$sig"
+```
+
+A signature you ask for has to be there: one not in this mailbox, or `default` when the mailbox has none, is 404 `signature_not_found` (exit `3`), and one with nothing in it is 422 `invalid_value` (exit `2`); nothing is written in either case.
 
 **Attachments on outgoing mail.** Attach files that are already in Cirrux by uuid: `--attachment <attachment-uuid>` for an attachment of any email the user can read (`cirrux email get <email-uuid> --json` lists them), `--drive-file <file-uuid>` for a Drive file (`cirrux drive search` finds it). Both are repeatable and work in either mode. The server copies the files, so nothing is downloaded or re-uploaded and their size doesn't matter, up to 25 MB a file and 35 MB for all of a draft's attachments together. **Never download an attachment just to put it in a MIME message: name it instead.** A file that is only on this computer goes into Drive first (`cirrux drive upload --file`), then onto the draft with `--drive-file`. Every file is checked before anything is written, so a draft is either created with all of them or not at all: a missing one is 404 `attachment_not_found` / `drive_file_not_found` (exit `3`), and one that can't be used is a 422 saying why (`not_uploaded`, `infected`, `missing_object`, `trashed`, `too_large`; exit `2`). A Drive file needs the `drive.read` scope as well. The response lists the draft's `attachments`, each with its `uuid`. Building a full MIME message with base64 parts (`--file` / stdin) still works, but only for a file that exists nowhere in Cirrux.
 
 Supply `--in-reply-to <email-uuid>` (in either mode) to link the draft to a parent email. In MIME mode you write the `To:` and `Subject: Re: ...` headers yourself; in markdown mode the server derives them (see above). The draft joins the parent's thread, so `--mailbox-uuid` must be the parent's mailbox (read it with `cirrux email get <email-uuid> --json | jq -r .mailbox_uuid`); any other mailbox is rejected with 422 (`mailbox_mismatch`) and the error names the right one. The response is the new draft (uuid, headers, body_html, body_text, labels include `draft`).
 
-**Updating a draft.** `draft update <draft-uuid>` changes a draft in place, so there is no need to delete and recreate it to fix a typo or add a recipient. Only the flags you pass change; everything else stays as it was. `--to`, `--cc` and `--bcc` each replace that whole list (pass every address you want to keep), and `--clear-cc` / `--clear-bcc` empty one (combining `--cc` with `--clear-cc` is a usage error). `--subject` sets the subject. `--markdown <path>` (or `-` for stdin) replaces the part of the body the author wrote and keeps the quoted original of a reply or the forwarded message below it; no signature is added. `--add-attachment` and `--add-drive-file` attach more files (as on `draft create`) and keep the ones already there, so adding a file to a forward never drops the forwarded attachments; `--remove-attachment <attachment-uuid>` takes one of the draft's own attachments off (any other uuid is 422 `invalid_value`). Passing no flag at all is a usage error (exit `2`). The response is the updated draft, the same shape as `draft create` returns. A draft that is scheduled to send, or is being sent, can't be updated: 422 `already_scheduled` (exit `5`), so cancel the scheduled send in the app first. Updating an email that isn't a draft returns 422 `not_a_draft` (exit `2`), and a bad address 422 `invalid_value`.
+**Updating a draft.** `draft update <draft-uuid>` changes a draft in place, so there is no need to delete and recreate it to fix a typo or add a recipient. Only the flags you pass change; everything else stays as it was. `--to`, `--cc` and `--bcc` each replace that whole list (pass every address you want to keep), and `--clear-cc` / `--clear-bcc` empty one (combining `--cc` with `--clear-cc` is a usage error). `--subject` sets the subject. `--markdown <path>` (or `-` for stdin) replaces the part of the body the author wrote and keeps the signature and the quoted original of a reply or the forwarded message below it. `--add-attachment` and `--add-drive-file` attach more files (as on `draft create`) and keep the ones already there, so adding a file to a forward never drops the forwarded attachments; `--remove-attachment <attachment-uuid>` takes one of the draft's own attachments off (any other uuid is 422 `invalid_value`). Passing no flag at all is a usage error (exit `2`). The response is the updated draft, the same shape as `draft create` returns. A draft that is scheduled to send, or is being sent, can't be updated: 422 `already_scheduled` (exit `5`), so cancel the scheduled send in the app first. Updating an email that isn't a draft returns 422 `not_a_draft` (exit `2`), and a bad address 422 `invalid_value`.
 
 `draft delete` returns 204 with no body. Deleting an email that isn't a draft returns 422 (`not_a_draft`); deleting a non-existent draft returns 404.
 
@@ -928,7 +942,7 @@ cirrux draft create --mailbox-uuid "$mb" --forward "$original" \
 
 The subject becomes `Fwd: <original subject>` and the original's attachments come along.
 
-**The same reply as raw MIME** (only when markdown can't express it, such as a signature or an attachment of your own). You write every header yourself:
+**The same reply as raw MIME** (only when markdown can't express it). It gets no signature. You write every header yourself:
 
 ```bash
 parent="<email-uuid>"

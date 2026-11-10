@@ -26,6 +26,7 @@ import {
   mailboxAddressesListCommand,
   mailboxAddressesUpdateCommand,
 } from './commands/mailbox/addresses.js'
+import { mailboxSignaturesListCommand } from './commands/mailbox/signatures.js'
 import { threadListCommand } from './commands/thread/list.js'
 import { threadGetCommand } from './commands/thread/get.js'
 import { threadSearchCommand } from './commands/thread/search.js'
@@ -267,6 +268,27 @@ mailboxLabels
   .option('--quiet', 'Output only the deleted label UUID (for piping)')
   .addHelpText('after', '\nExample:\n  $ cirrux mailbox labels delete <mailbox-uuid> <label-uuid>')
   .action(mailboxLabelsDeleteCommand)
+
+const mailboxSignatures = mailbox
+  .command('signatures')
+  .description('List the signatures of a mailbox (made and edited in the Cirrux web app)')
+
+mailboxSignatures
+  .command('list')
+  .description('List the signatures of a mailbox')
+  .argument('<mailbox-uuid>', 'Mailbox UUID')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only signature UUIDs, one per line (for piping)')
+  .addHelpText(
+    'after',
+    `
+Examples:
+  $ cirrux mailbox signatures list <mailbox-uuid>
+  $ cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown note.md --signature <signature-uuid>
+
+Pass a uuid, or 'default' for the one marked default, to draft create --signature.`,
+  )
+  .action(mailboxSignaturesListCommand)
 
 const mailboxFilters = mailbox
   .command('filters')
@@ -769,6 +791,7 @@ draft
     '--no-quote-original',
     'Do not quote the original email below your reply (markdown replies quote it by default)',
   )
+  .option('--signature <uuid|default>', "Sign with one of the mailbox's signatures: a uuid from 'cirrux mailbox signatures list', or 'default' (markdown mode only; unsigned without it)")
   .option('--remind-at <when>', "Set a reminder that fires after sending. Wake-up time: '+2d', 'tomorrow 9am', 'monday', '3 hours', 'mar 20', or an ISO 8601 timestamp")
   .option('--remind-if-no-reply', 'Only remind if nobody has replied by then')
   .option('--json', 'Output as JSON')
@@ -783,6 +806,7 @@ Examples:
   $ cirrux draft create --mailbox-uuid <uuid> --markdown note.md --forward <email-uuid> --to bob@example.com
   $ cirrux draft create --mailbox-uuid <uuid> --markdown body.md --to alice@example.com --from sales@example.com
   $ cirrux draft create --mailbox-uuid <uuid> --markdown body.md --to alice@example.com --drive-file <file-uuid>
+  $ cirrux draft create --mailbox-uuid <uuid> --markdown body.md --to alice@example.com --signature default
   $ cirrux draft create --mailbox-uuid <uuid> --file message.eml
 
 A markdown reply derives what you leave out: To (or To and Cc with --reply-all),
@@ -793,8 +817,10 @@ the "Re:" subject, and the address to send from. Anything you pass explicitly wi
 each and 35 MB together. The server copies them, so nothing is downloaded. To attach a
 file from your computer, upload it with 'cirrux drive upload' first.
 
-Markdown drafts carry no signature. To include one, build the full MIME message
-yourself and pass it with --file or on stdin.`,
+A markdown draft is unsigned unless you pass --signature: 'default' for the
+mailbox's default signature, or a uuid ('cirrux mailbox signatures list' shows
+them). It goes below your text, above the quoted original of a reply, so leave
+your own sign-off out of the body then.`,
   )
   .action(draftCreateCommand)
 
@@ -802,7 +828,7 @@ draft
   .command('update')
   .description('Change the body, subject or recipients of a draft')
   .argument('<uuid>', 'Draft UUID')
-  .option('--markdown <path>', 'Markdown file with the new body, or - for stdin (replaces what you wrote; a quoted or forwarded original stays)')
+  .option('--markdown <path>', 'Markdown file with the new body, or - for stdin (replaces what you wrote; the signature and a quoted or forwarded original stay)')
   .option('--subject <subject>', 'New subject line')
   .option('--to <addr>', '`Name <addr>` or `addr` (repeatable; replaces the To list)', collectAddress, [])
   .option('--cc <addr>', '`Name <addr>` or `addr` (repeatable; replaces the Cc list)', collectAddress, [])
@@ -826,7 +852,7 @@ Examples:
 
 Only what you pass changes. A recipient flag replaces that whole list, so pass
 every address you want to keep. --markdown replaces the part you wrote and keeps
-the quoted original of a reply or the forwarded message. No signature is added.
+the signature and the quoted original of a reply or the forwarded message.
 Attachments are added and removed, never replaced, so the draft keeps the rest.
 The draft lists its attachments with their uuids.
 

@@ -22,6 +22,8 @@ export interface DraftCreateOptions extends OutputOptions, ReminderOptions {
   replyAll?: boolean
   forward?: string
   from?: string
+  /** A signature uuid, or `default` for the mailbox's default. Left out, the draft is unsigned. */
+  signature?: string
   /** Email attachments to copy onto the draft (repeatable --attachment). */
   attachment?: string[]
   /** Drive files to copy onto the draft (repeatable --drive-file). */
@@ -35,6 +37,11 @@ export const DRAFT_CREATE_ERROR_RULES: ApiErrorRule[] = [
     errorCode: 'mailbox_mismatch',
     exitCode: ExitCode.USAGE_ERROR,
     hint: "Pass the parent's mailbox as --mailbox-uuid. 'cirrux email get <email-uuid>' shows it.",
+  },
+  {
+    errorCode: 'signature_not_found',
+    exitCode: ExitCode.NOT_FOUND,
+    hint: "'cirrux mailbox signatures list <mailbox-uuid>' shows the mailbox's signatures.",
   },
   ...FILE_REFERENCE_ERROR_RULES,
 ]
@@ -63,12 +70,13 @@ export function parseAddress(input: string): DraftAddress {
   return { address: trimmed }
 }
 
-// A MIME draft carries its own From/To/Cc/Subject headers, so these flags have
-// nothing to act on there. Saying so beats silently dropping them.
+// A MIME draft carries its own From/To/Cc/Subject headers and its own body, so
+// these flags have nothing to act on there. Saying so beats silently dropping them.
 const MARKDOWN_ONLY_FLAGS: [keyof DraftCreateOptions, string][] = [
   ['replyAll', '--reply-all'],
   ['forward', '--forward'],
   ['from', '--from'],
+  ['signature', '--signature'],
 ]
 
 /**
@@ -83,7 +91,7 @@ export function draftCreateUsageError(options: DraftCreateOptions): string | nul
   if (!options.markdown) {
     const used = MARKDOWN_ONLY_FLAGS.filter(([key]) => Boolean(options[key])).map(([, flag]) => flag)
     if (used.length > 0) {
-      return `Only a --markdown draft takes ${used.join(', ')}: a MIME draft carries its own headers.`
+      return `Only a --markdown draft takes ${used.join(', ')}: a MIME draft carries its own headers and body.`
     }
   }
 
@@ -118,6 +126,7 @@ export function buildDraftCreateBody(options: DraftCreateOptions, content: strin
     if (options.from) body.from = options.from
     if (options.replyAll) body.reply_all = true
     if (options.forward) body.forward_email_uuid = options.forward
+    if (options.signature) body.signature = options.signature
     // Default is to quote (server-side); only send the opt-out. Quoting only
     // applies when this is a reply (--in-reply-to).
     if (options.quoteOriginal === false) body.quote_original = false

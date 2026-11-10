@@ -144,6 +144,11 @@ cirrux draft create --mailbox-uuid <mailbox-uuid> --file reply.eml --in-reply-to
 cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --to alice@example.com \
   --attachment <attachment-uuid> --drive-file <file-uuid>
 
+# Sign with the mailbox's default signature, or another of its signatures (unsigned otherwise)
+cirrux mailbox signatures list <mailbox-uuid>
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --to alice@example.com --signature default
+cirrux draft create --mailbox-uuid <mailbox-uuid> --markdown body.md --to alice@example.com --signature <signature-uuid>
+
 # Change a draft in place: only what you pass changes, and a recipient flag replaces that list
 cirrux draft update <draft-uuid> --markdown body.md --subject "Updated plan"
 cirrux draft update <draft-uuid> --to alice@example.com --clear-cc
@@ -153,11 +158,13 @@ cirrux draft send <draft-uuid>
 cirrux draft delete <draft-uuid>
 ```
 
-Anything you pass explicitly (`--to`, `--cc`, `--subject`, `--from`) wins over what the server derives. `--reply-all`, `--forward` and `--from` only work with `--markdown`, and `--forward` can't be combined with `--in-reply-to`. Markdown drafts carry no signature; to include one, build the MIME message yourself and pass it with `--file` or on stdin.
+Anything you pass explicitly (`--to`, `--cc`, `--subject`, `--from`) wins over what the server derives. `--reply-all`, `--forward`, `--from` and `--signature` only work with `--markdown`, and `--forward` can't be combined with `--in-reply-to`.
+
+A markdown draft is unsigned unless you pass `--signature`: `default` for the mailbox's default signature, or a uuid (`cirrux mailbox signatures list` shows them, the default marked). It goes below your text and above the quoted original of a reply, where the app puts it, so leave your own sign-off out of the body. Signatures are made and edited in the Cirrux mail app.
 
 `--attachment` and `--drive-file` attach files that are already in Cirrux: the server copies them, so nothing is downloaded, up to 25 MB a file and 35 MB together. To attach a file from your computer, `cirrux drive upload` it first.
 
-`draft update` keeps the quoted original of a reply or the forwarded message when you replace the body with `--markdown` (a path, or `-` for stdin), and adds no signature. `--add-attachment`/`--add-drive-file` add files and keep the rest; `--remove-attachment` takes one of the draft's attachments off. A draft that is scheduled to send can't be updated; cancel the scheduled send in the app first.
+`draft update` keeps the signature and the quoted original of a reply or the forwarded message when you replace the body with `--markdown` (a path, or `-` for stdin). `--add-attachment`/`--add-drive-file` add files and keep the rest; `--remove-attachment` takes one of the draft's attachments off. A draft that is scheduled to send can't be updated; cancel the scheduled send in the app first.
 
 `draft send` needs the `email.send` OAuth scope (separate from `email.write`); if you logged in before send existed, run `cirrux logout && cirrux login` to re-grant.
 
@@ -284,7 +291,7 @@ cirrux docs share create <document-uuid>
 | `cirrux email read <email-uuid>` / `cirrux email unread <email-uuid>` | Mark an email as read or unread                                                                      |
 | `cirrux email flag <email-uuid>` / `cirrux email unflag <email-uuid>` | Flag (star) or unflag an email                                                                       |
 | `cirrux email snooze <email-uuid> --until <when>`                     | Snooze an email until later (`--if-no-reply`); `cirrux email unsnooze` cancels                       |
-| `cirrux draft create --mailbox-uuid <uuid>`                           | Create a draft from a MIME message (`--file`/stdin) or markdown (`--markdown` + headers); `--in-reply-to` links a reply, `--reply-all`, `--forward`, `--from`; `--attachment`/`--drive-file` attach files by uuid |
+| `cirrux draft create --mailbox-uuid <uuid>`                           | Create a draft from a MIME message (`--file`/stdin) or markdown (`--markdown` + headers); `--in-reply-to` links a reply, `--reply-all`, `--forward`, `--from`; `--signature` signs it; `--attachment`/`--drive-file` attach files by uuid |
 | `cirrux draft update <draft-uuid>`                                    | Change a draft's body (`--markdown`), subject or recipients; `--clear-cc`/`--clear-bcc` empty a list; `--add-attachment`/`--add-drive-file`/`--remove-attachment` |
 | `cirrux draft send <draft-uuid>`                                      | Send a draft immediately (needs the `email.send` scope); `--remind-at <when>` sets a follow-up reminder |
 | `cirrux draft delete <draft-uuid>`                                    | Delete a draft                                                                                       |
