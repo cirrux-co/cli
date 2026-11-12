@@ -66,6 +66,26 @@ The single process stays alive between the two lines, so an agent can read the f
 code, and wait for the same process to exit. In `--json` mode progress notices go to stderr, keeping
 stdout to just those two events.
 
+### Limiting what a login can do (`--scopes`)
+
+By default a login can do everything the CLI can. `--scopes` limits one login to the scopes you name,
+comma-separated, and the approval screen offers only those (plus your profile, which every login has):
+
+```bash
+cirrux login --no-browser --scopes drive.create,drive.read
+```
+
+The limit belongs to that login alone. The CLI on your laptop keeps what it has, and logging in there
+again never widens what this machine can do. A server signed in like this can upload and read files but
+cannot read or send mail, and cannot replace, rename, trash or delete anything, so a stolen token there
+cannot touch your existing backups. Each login is listed under Settings, Security, Sessions, where you
+can sign it out on its own.
+
+Valid scopes: `user.profile`, `email.read`, `email.write`, `email.send`, `drive.read`, `drive.create`,
+`drive.update`, `drive.delete`, `calendar.read`, `calendar.write`, `tasks.read`, `tasks.write`,
+`contacts.read`, `contacts.write`, `docs.read`, `docs.comment`, `docs.write`. `cirrux whoami` shows what
+the current login holds.
+
 ### Using a workspace API key
 
 For a script or server that shouldn't log in, give the CLI a workspace API key instead: in

@@ -69,6 +69,8 @@ Read that first line, surface the `user_code` and `verification_uri` to the user
 
 `--no-browser` forces the device-code flow even on a desktop; on a truly headless machine it's the default and the flag is optional. In `--json` mode all human-readable progress notices go to stderr, so stdout carries only the two JSON events above.
 
+To limit a login to what a job needs, add `--scopes` with a comma-separated list (`cirrux login --no-browser --scopes drive.create,drive.read` for an upload-only backup). The approval screen then offers only those scopes, the limit applies to that login alone (other machines keep theirs, and later logins elsewhere never widen it), and `cirrux whoami` shows what it holds. An unknown scope exits `2` with type `invalid_scope` and the valid list. When a limited login is refused with `insufficient_scope`, the hint names a `--scopes` list that adds just the missing scope: suggest that rather than a plain `cirrux login`, which would lift the limit.
+
 ## Attribution
 
 When invoked from inside Claude Code, the CLI auto-detects the `CLAUDECODE=1` environment variable and tags every mutation with co-author `claude` — no action needed from you. This shows up in the user's activity feed so they can tell which actions came from you (vs. their own).

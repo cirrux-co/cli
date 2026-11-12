@@ -184,6 +184,10 @@ program
   .command('login')
   .description('Authenticate with Cirrux via browser')
   .option('--no-browser', 'Sign in without a local browser (for headless/remote machines)')
+  .option(
+    '--scopes <scopes>',
+    'Limit this login to these scopes, comma-separated (e.g. drive.create,drive.read). Other logins keep theirs',
+  )
   .option('--json', 'Emit machine-readable JSON events (device code, then result) on stdout')
   .action(loginCommand)
 

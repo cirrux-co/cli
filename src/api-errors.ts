@@ -1,6 +1,8 @@
 import { API_KEYS_ADMIN_URL } from './api-key.js'
 import { ApiError, AuthRefreshFailedError } from './api.js'
+import { getActiveCredentials } from './config.js'
 import { ExitCode } from './exit-codes.js'
+import { LOGIN_SCOPES, requiredScopeFrom } from './login-scopes.js'
 import { outputError, type OutputOptions } from './output.js'
 
 // The single place an API failure becomes an exit code.
@@ -70,7 +72,16 @@ function rateLimitHint(error: ApiError): string {
  * Pure: it reads no process state and writes nothing, so it can be unit-tested
  * directly. `handleApiError` is the thin wrapper that prints and exits.
  */
-export function classifyApiError(error: unknown, context: ApiErrorContext): ErrorClassification {
+/**
+ * `heldScopes` is what the active login holds (saved from the token response). A login that holds
+ * fewer than the CLI can ask for was most likely limited with `--scopes`, and a plain re-login would
+ * quietly widen it, so the hint offers a way to add just the missing scope.
+ */
+export function classifyApiError(
+  error: unknown,
+  context: ApiErrorContext,
+  heldScopes: string[] | undefined = getActiveCredentials()?.scopes,
+): ErrorClassification {
   const { action } = context
   const failed = (reason: string): string => `${action} failed: ${reason}`
 
@@ -120,7 +131,7 @@ export function classifyApiError(error: unknown, context: ApiErrorContext): Erro
       code: ExitCode.AUTH_REQUIRED,
       message: `Your session is missing ${scope ?? 'the required'} permissions.`,
       errorType: 'insufficient_scope',
-      hint: `Run 'cirrux login' again to grant ${scope ?? 'the required'} access.`,
+      hint: insufficientScopeHint(scope, requiredScopeFrom(error.description ?? undefined), heldScopes),
     }
   }
 
@@ -205,6 +216,15 @@ function classifyApiKeyError(error: ApiError, source: string): ErrorClassificati
  * Domain helpers wrap this only to bind `scope`/`rules` — a wrapper never
  * contains a branch. New domain behaviour goes in an `ApiErrorRule`.
  */
+function insufficientScopeHint(scope: string | undefined, required: string | undefined, held: string[] | undefined) {
+  const relogin = `Run 'cirrux login' again to grant ${scope ?? 'the required'} access.`
+  const limited = held !== undefined && held.length > 0 && held.length < LOGIN_SCOPES.length
+  if (!limited || !required || held.includes(required)) return relogin
+
+  const widened = [...held, required].join(',')
+  return `This login is limited to ${held.join(', ')}. To add ${required} and keep the rest limited, run 'cirrux login --scopes ${widened}'. ${relogin}`
+}
+
 export function handleApiError(
   error: unknown,
   options: OutputOptions,

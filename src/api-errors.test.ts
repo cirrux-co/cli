@@ -61,6 +61,22 @@ test('insufficient_scope names the scope and points at re-login', () => {
   expect(result.hint).toContain('cirrux login')
 })
 
+test('insufficient_scope on a login limited with --scopes offers to add just the missing scope', () => {
+  const body = '{"error":"insufficient_scope","error_description":"Required scope: drive.update"}'
+  const held = ['user.profile', 'drive.read', 'drive.create']
+  const result = classifyApiError(apiError(403, body), { action: 'Replace file', scope: 'Drive' }, held)
+
+  expect(result.hint).toContain("cirrux login --scopes user.profile,drive.read,drive.create,drive.update")
+  expect(result.hint).toContain("Run 'cirrux login' again")
+})
+
+test('insufficient_scope on a full login just points at re-login', () => {
+  const body = '{"error":"insufficient_scope","error_description":"Required scope: drive.update"}'
+  const result = classifyApiError(apiError(403, body), { action: 'Replace file', scope: 'Drive' }, [])
+
+  expect(result.hint).toBe("Run 'cirrux login' again to grant Drive access.")
+})
+
 test('a plain 403 is forbidden, not a scope problem', () => {
   const body = '{"error":"forbidden","error_description":"Nope."}'
   const result = classifyApiError(apiError(403, body), { action: 'List files', scope: 'Drive' })

@@ -34,6 +34,8 @@ interface DeviceAuthorizationResponse {
 export interface LoginOptions {
   noBrowser?: boolean
   json?: boolean
+  /** Limit this login to these scopes (`--scopes`); the consent screen offers only these. */
+  scopes?: string[]
 }
 
 interface ProfileResponse {
@@ -79,16 +81,17 @@ export function loggedInEvent(profile: ProfileResponse & { workspace: { uuid: st
 
 export async function login(options: LoginOptions = {}): Promise<void> {
   const json = options.json ?? false
+  const scope = options.scopes?.join(' ')
   if (options.noBrowser || isHeadless()) {
-    await loginViaDeviceCode(json)
+    await loginViaDeviceCode(json, scope)
   } else {
-    await loginViaBrowser(json)
+    await loginViaBrowser(json, scope)
   }
 }
 
 // Default flow for machines with a local browser: spin up a temporary loopback
 // listener and complete the PKCE authorization-code flow in the browser.
-async function loginViaBrowser(json: boolean): Promise<void> {
+async function loginViaBrowser(json: boolean, scope: string | undefined): Promise<void> {
   const codeVerifier = generateCodeVerifier()
   const codeChallenge = generateCodeChallenge(codeVerifier)
 
@@ -109,6 +112,7 @@ async function loginViaBrowser(json: boolean): Promise<void> {
       redirect_uri: redirectUri,
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
+      ...(scope ? { scope } : {}),
     },
   })
 
@@ -171,7 +175,7 @@ async function loginViaBrowser(json: boolean): Promise<void> {
 // Headless flow (OAuth 2.0 Device Authorization Grant, RFC 8628): the user
 // opens a verification URL on any device and types a short code; meanwhile the
 // CLI polls until the authorization is approved. No inbound redirect required.
-async function loginViaDeviceCode(json: boolean): Promise<void> {
+async function loginViaDeviceCode(json: boolean, scope: string | undefined): Promise<void> {
   const codeVerifier = generateCodeVerifier()
   const codeChallenge = generateCodeChallenge(codeVerifier)
 
@@ -180,6 +184,7 @@ async function loginViaDeviceCode(json: boolean): Promise<void> {
       client_id: 'cirrux-cli',
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
+      ...(scope ? { scope } : {}),
     },
   })
 

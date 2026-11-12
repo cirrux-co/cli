@@ -1,5 +1,6 @@
 import { resolveApiKey } from './api-key.js'
 import { getActiveCredentials, saveWorkspaceCredentials } from './config.js'
+import { cliUserAgent } from './user-agent.js'
 
 const DEFAULT_API_URL = 'https://api.cirrux.co/'
 
@@ -168,6 +169,7 @@ export async function apiRequest<T>(
   const url = new URL(path, apiUrl())
   const headers: Record<string, string> = {
     'Content-Type': options.bytes ? 'application/octet-stream' : 'application/json',
+    'User-Agent': cliUserAgent(),
     ...coAuthorHeader(),
   }
 
@@ -200,6 +202,7 @@ export async function apiRequestRaw(
 ): Promise<{ body: Buffer; contentType: string }> {
   const url = new URL(path, apiUrl())
   const headers: Record<string, string> = {
+    'User-Agent': cliUserAgent(),
     ...coAuthorHeader(),
   }
 
@@ -312,6 +315,7 @@ export async function authedRequestVoid(
     const url = new URL(path, apiUrl())
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'User-Agent': cliUserAgent(),
       ...coAuthorHeader(),
     }
     headers['Authorization'] = `Bearer ${token}`

@@ -4,6 +4,8 @@ import { join } from 'node:path'
 
 const CONFIG_DIR = join(homedir(), '.cirrux')
 const CREDENTIALS_FILE = join(CONFIG_DIR, 'credentials.json')
+const PRIVATE_DIR_MODE = 0o700
+const PRIVATE_FILE_MODE = 0o600
 
 interface WorkspaceCredentials {
   workspace_uuid: string
@@ -21,9 +23,8 @@ interface CredentialsFile {
 }
 
 export function ensureConfigDir() {
-  if (!existsSync(CONFIG_DIR)) {
-    mkdirSync(CONFIG_DIR, { recursive: true })
-  }
+  // Owner-only when the dir is created. An existing dir keeps the mode it has.
+  mkdirSync(CONFIG_DIR, { recursive: true, mode: PRIVATE_DIR_MODE })
 }
 
 export function readCredentials(): CredentialsFile {
@@ -36,7 +37,8 @@ export function readCredentials(): CredentialsFile {
 
 export function writeCredentials(creds: CredentialsFile) {
   ensureConfigDir()
-  writeFileSync(CREDENTIALS_FILE, JSON.stringify(creds, null, 2))
+  // Owner-only when the file is created. An existing file keeps the mode it has.
+  writeFileSync(CREDENTIALS_FILE, JSON.stringify(creds, null, 2), { mode: PRIVATE_FILE_MODE })
 }
 
 export function getActiveCredentials(): WorkspaceCredentials | null {
