@@ -93,6 +93,14 @@ import { calendarEventsCreateCommand } from './commands/calendar/events/create.j
 import { calendarEventsUpdateCommand } from './commands/calendar/events/update.js'
 import { calendarEventsDeleteCommand } from './commands/calendar/events/delete.js'
 import { calendarEventsRsvpCommand } from './commands/calendar/events/rsvp.js'
+import {
+  schedulingPagesCreateCommand,
+  schedulingPagesDeleteCommand,
+  schedulingPagesGetCommand,
+  schedulingPagesListCommand,
+  schedulingPagesSlotsCommand,
+  schedulingPagesUpdateCommand,
+} from './commands/scheduling/pages.js'
 import { tasksListCommand } from './commands/tasks/list.js'
 import {
   tasksCompleteCommand,
@@ -1056,6 +1064,134 @@ calendarEvents
   )
   .action(calendarEventsDeleteCommand)
 
+const scheduling = program
+  .command('scheduling')
+  .description('Scheduling pages: booking links people use to book time with you')
+
+const schedulingPages = scheduling
+  .command('pages')
+  .description('Make and change scheduling pages, and preview the times they offer')
+
+const PAGE_WRITE_HELP =
+  '\nTimes:\n' +
+  '  --hours takes days and times, and can be given more than once: "mon-fri 09:00-17:00",\n' +
+  '  "mon,wed 09:00-12:00,13:00-17:00", "weekdays 10:00-16:00", "daily 09:00-12:00". A day never named\n' +
+  '  is off. Hours are read in the page\'s --timezone. Instead of hours, a page can offer set windows\n' +
+  '  (--window <start>/<end>) or set start times (--slot <start>), each with a UTC offset.\n' +
+  '\nLengths (--duration, --notice) take minutes or a length: 30, 45m, 1h, 1h30m, 2d.\n'
+
+schedulingPages
+  .command('list')
+  .description('List the scheduling pages you can see: yours, and those booking into calendars you see')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only page UUIDs, one per line (for piping)')
+  .addHelpText('after', '\nExample:\n  $ cirrux scheduling pages list')
+  .action(schedulingPagesListCommand)
+
+schedulingPages
+  .command('get')
+  .description('Show one scheduling page: its link, hours, rules and calendars')
+  .argument('<page-uuid>', 'Page UUID (from `cirrux scheduling pages list`)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the page link')
+  .addHelpText('after', '\nExample:\n  $ cirrux scheduling pages get <page-uuid>')
+  .action(schedulingPagesGetCommand)
+
+schedulingPages
+  .command('create')
+  .description('Create a scheduling page. Its link takes bookings as soon as it exists, unless --off')
+  .requiredOption('--title <title>', 'What the meeting is, e.g. "Intro call"')
+  .requiredOption('--duration <length>', 'How long a meeting is: 30, 45m, 1h (a multiple of 5 minutes)')
+  .option('--slug <slug>', 'The end of the link, book.cirrux.co/s/<slug> (default: made from the title)')
+  .option('--description <text>', 'Shown on the page and in the invitation')
+  .option('--location <text>', 'Where the meeting happens: an address, or a video link')
+  .option('--timezone <iana>', 'The zone its hours are read in (default: yours)')
+  .option('--hours <days-and-times...>', 'Weekly hours, repeatable (default: your working hours)')
+  .option('--window <start/end...>', 'A set window to offer instead of weekly hours, repeatable')
+  .option('--slot <start...>', 'A set start time to offer instead of weekly hours, repeatable')
+  .option('--notice <length>', 'How soon a booking may start, e.g. 4h (default 4h)')
+  .option('--days-ahead <days>', 'How far ahead people can book (default 60)')
+  .option('--off', 'Create it switched off, so its link takes no bookings yet')
+  .option('--mailbox <uuid>', 'Whose page it is: invitations come from this mailbox (default: yours)')
+  .option('--book-into <calendar-uuid>', "Calendar bookings land in (default: the mailbox's default calendar)")
+  .option('--busy-calendar <calendar-uuid...>', 'A calendar whose events block time, repeatable (default: all of the host\'s)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the new page UUID (for piping)')
+  .addHelpText(
+    'after',
+    PAGE_WRITE_HELP +
+      '\nCalendar UUIDs are the calendar_uuid values from `cirrux calendar list`. A calendar outside your\n' +
+      'default mailbox needs --mailbox too.\n' +
+      '\nExamples:\n' +
+      '  $ cirrux scheduling pages create --title "Intro call" --duration 30\n' +
+      '  $ cirrux scheduling pages create --title "Office hours" --duration 20m --slug office-hours \\\n' +
+      '      --hours "tue,thu 14:00-17:00" --notice 1d --days-ahead 14\n' +
+      '  $ cirrux scheduling pages create --title "Launch demo" --duration 30 \\\n' +
+      '      --slot 2026-12-03T10:00:00+01:00 --slot 2026-12-03T14:00:00+01:00 --slot 2026-12-04T09:30:00+01:00',
+  )
+  .action(schedulingPagesCreateCommand)
+
+schedulingPages
+  .command('update')
+  .description('Change a scheduling page. Only what you pass changes')
+  .argument('<page-uuid>', 'Page UUID (from `cirrux scheduling pages list`)')
+  .option('--title <title>', 'New title')
+  .option('--duration <length>', 'New meeting length')
+  .option('--slug <slug>', 'New end of the link (the old link stops working)')
+  .option('--description <text>', 'New description; "" clears it')
+  .option('--location <text>', 'New location; "" clears it')
+  .option('--timezone <iana>', 'New zone for its hours')
+  .option('--hours <days-and-times...>', 'Replace the weekly hours, repeatable')
+  .option('--window <start/end...>', 'Replace what it offers with set windows, repeatable')
+  .option('--slot <start...>', 'Replace what it offers with set start times, repeatable')
+  .option('--notice <length>', 'How soon a booking may start')
+  .option('--days-ahead <days>', 'How far ahead people can book')
+  .option('--on', 'Switch it on: its link takes bookings')
+  .option('--off', 'Switch it off: its link shows but takes no bookings')
+  .option('--mailbox <uuid>', 'Move it to another mailbox you manage')
+  .option('--book-into <calendar-uuid>', 'Calendar bookings land in')
+  .option('--busy-calendar <calendar-uuid...>', 'Replace the calendars whose events block time, repeatable')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the page UUID (for piping)')
+  .addHelpText(
+    'after',
+    PAGE_WRITE_HELP +
+      '\nExamples:\n' +
+      '  $ cirrux scheduling pages update <page-uuid> --off\n' +
+      '  $ cirrux scheduling pages update <page-uuid> --hours "mon-fri 09:00-12:00" --notice 1d',
+  )
+  .action(schedulingPagesUpdateCommand)
+
+schedulingPages
+  .command('delete')
+  .description('Delete a scheduling page; its link stops working at once')
+  .argument('<page-uuid>', 'Page UUID (from `cirrux scheduling pages list`)')
+  .option('--yes', 'Skip the confirmation prompt (required when not running in a terminal)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the deleted page UUID (for piping)')
+  .addHelpText(
+    'after',
+    '\nBookings already made stay on the calendar, and their cancel links keep working.\n' +
+      '\nExample:\n  $ cirrux scheduling pages delete <page-uuid> --yes',
+  )
+  .action(schedulingPagesDeleteCommand)
+
+schedulingPages
+  .command('slots')
+  .description('Preview the times a page offers right now: exactly what its link shows')
+  .argument('<page-uuid>', 'Page UUID (from `cirrux scheduling pages list`)')
+  .option('--from <date>', "First day, YYYY-MM-DD in the page's time zone (default: today)")
+  .option('--to <date>', 'Last day, YYYY-MM-DD (default: two weeks from today; at most 62 days)')
+  .option('--json', 'Output as JSON')
+  .option('--quiet', 'Output only the start times, one per line')
+  .addHelpText(
+    'after',
+    '\nExamples:\n' +
+      '  $ cirrux scheduling pages slots <page-uuid>\n' +
+      '  $ cirrux scheduling pages slots <page-uuid> --from 2026-12-01 --to 2026-12-07',
+  )
+  .action(schedulingPagesSlotsCommand)
+
 const tasks = program
   .command('tasks')
   .description('Read and change tasks, and the task lists they live on')
@@ -1396,9 +1532,9 @@ const MARKDOWN_HELP =
   'header row is written with an empty one.\n' +
   'Text color and highlight are <span data-color="red">red</span> and <mark data-color="yellow">marked</mark>,\n' +
   'in gray, red, orange, yellow, green, teal, blue, purple or pink; any other color is dropped.\n' +
-  'It has no code blocks, and no images from elsewhere: a code block becomes lines of inline code\n' +
-  'without its language; an image by URL becomes a link to it. Write those another way: a code block\n' +
-  "as inline code per line, an image with 'cirrux docs attach'."
+  'A fenced code block is kept as a code block with its language (```ts is stored as typescript).\n' +
+  'It has no images from elsewhere: an image by URL becomes a link to it. Attach one with\n' +
+  "'cirrux docs attach'."
 
 const SUGGEST_OPTION = 'Suggest the change instead of making it (commenter role is enough)'
 const COMMENT_OPTION = 'With --suggest: why, as markdown, the first message on the suggestion'

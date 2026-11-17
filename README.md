@@ -253,6 +253,17 @@ cirrux calendar events update <calendar-uuid> <uuid>_20260909T070000Z --title "L
 cirrux calendar events delete <calendar-uuid> <event-uuid> --yes
 cirrux calendar events rsvp <calendar-uuid> <event-uuid> --status accepted
 
+# Scheduling pages (booking links at book.cirrux.co/s/<slug>)
+cirrux scheduling pages list
+cirrux scheduling pages create --title "Intro call" --duration 30
+cirrux scheduling pages create --title "Office hours" --duration 20m --hours "tue,thu 14:00-17:00" --notice 1d
+cirrux scheduling pages create --title "Launch demo" --duration 30 \
+  --slot 2026-12-03T10:00:00+01:00 --slot 2026-12-03T14:00:00+01:00 --slot 2026-12-04T09:30:00+01:00
+cirrux scheduling pages update <page-uuid> --hours "mon-fri 09:00-12:00"
+cirrux scheduling pages update <page-uuid> --off
+cirrux scheduling pages slots <page-uuid>                          # the times its link offers now
+cirrux scheduling pages delete <page-uuid> --yes
+
 # Tasks and the task lists they live on
 cirrux tasks list
 cirrux tasks list --due-before 2026-11-02

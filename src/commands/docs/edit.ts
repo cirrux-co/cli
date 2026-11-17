@@ -90,7 +90,7 @@ export function parseOperations(json: string): DocumentEditOperation[] | string 
   return list as DocumentEditOperation[]
 }
 
-const OPERATION_TYPES = ['replace', 'insert', 'delete', 'set_document']
+const OPERATION_TYPES = ['replace', 'insert', 'delete', 'set_cell', 'set_document']
 
 /** Why an operation has no type, naming the flat shape, and the fix when it was written keyed by its type. */
 function untypedOperationMessage(item: unknown, position: number): string {
