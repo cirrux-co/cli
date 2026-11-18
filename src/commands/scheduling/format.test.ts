@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
-import { formatHours, formatLength, formatPage, formatPageList, formatSlots } from './format.js'
+import { formatHours, formatLength, formatPage, formatPageList, formatSlots, formatWrittenPage, hostNamesFrom } from './format.js'
+import type { Calendar } from '../calendar/calendar-shared.js'
 import { parseHours } from './page-body.js'
 import type { SchedulingPage } from './scheduling-shared.js'
 
@@ -15,6 +16,7 @@ function page(overrides: Partial<SchedulingPage> = {}): SchedulingPage {
     duration_minutes: 30,
     timezone: 'Europe/Amsterdam',
     active: true,
+    hold_times: false,
     minimum_notice_minutes: 240,
     booking_window_days: 60,
     availability: {
@@ -93,6 +95,51 @@ test('one page shows its link, hours, rules and calendars', () => {
   expect(text).toContain('notice      4h')
   expect(text).toContain('books into  cal-1')
   expect(text.endsWith('\n\nA first chat.')).toBe(true)
+  expect(text).not.toContain('held')
+})
+
+test('a page holding its slots says so under them', () => {
+  const held = page({ hold_times: true, availability: { type: 'slots', slots: [{ start: '2026-12-03T10:00:00+01:00' }] } })
+
+  expect(formatPage(held)).toContain('slots       2026-12-03T10:00:00+01:00\nheld        in the calendar until the first booking')
+})
+
+function calendar(overrides: Partial<Calendar>): Calendar {
+  return {
+    object: 'calendar',
+    uuid: 'link-1',
+    calendar_uuid: 'cal-1',
+    mailbox_uuid: 'mb-1',
+    mailbox_address: 'jan@example.com',
+    name: 'Calendar',
+    description: null,
+    color: null,
+    role: 'owner',
+    can_write: true,
+    source: 'internal',
+    position: 0,
+    is_default: true,
+    ...overrides,
+  }
+}
+
+test("the host's mailbox and calendars read as addresses and names, so an unexpected host shows", () => {
+  const names = hostNamesFrom([
+    calendar({}),
+    calendar({ uuid: 'link-2', calendar_uuid: 'cal-2', name: 'Family', mailbox_address: 'jan@example.com' }),
+  ])
+  const busy = page({
+    hosts: [{ user_uuid: 'u-1', mailbox_uuid: 'mb-1', booking_calendar_uuid: 'cal-1', availability_calendar_uuids: ['cal-1', 'cal-2', 'cal-9'] }],
+  })
+
+  const lines = formatPage(busy, names).split('\n')
+  expect(lines).toContain('mailbox     jan@example.com')
+  expect(lines).toContain('books into  Calendar (jan@example.com)')
+  expect(lines).toContain('busy from   Calendar (jan@example.com)')
+  expect(lines).toContain('            Family (jan@example.com)')
+  expect(lines).toContain('            cal-9')
+  expect(formatWrittenPage(busy, names).endsWith('\thttps://book.cirrux.co/s/intro-call\tjan@example.com')).toBe(true)
+  expect(formatWrittenPage(busy).endsWith('\tmb-1')).toBe(true)
 })
 
 test('slots read a day per line, start times in the zone they were asked for', () => {

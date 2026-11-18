@@ -1,12 +1,12 @@
 /**
  * Turning the scheduling page flags into the API's page body. Pure and separately tested: the
- * hours syntax, the lengths, and which host fields an update carries over all live here.
+ * hours syntax and the lengths live here.
  *
  * The server checks everything that needs knowing what a page is (overlapping hours, an unknown
  * time zone, a calendar the caller can't write to). Here we only turn what was typed into the
  * shape the API takes, and refuse what can't be read at all.
  */
-import { type Availability, type HoursRange, type SchedulingPageHost, type Weekday, WEEKDAYS } from './scheduling-shared.js'
+import { type Availability, type HoursRange, type Weekday, WEEKDAYS } from './scheduling-shared.js'
 
 export interface PageBodyOptions {
   title?: string
@@ -22,6 +22,7 @@ export interface PageBodyOptions {
   daysAhead?: string
   on?: boolean
   off?: boolean
+  hold?: boolean
   mailbox?: string
   bookInto?: string
   busyCalendar?: string[]
@@ -154,34 +155,22 @@ function availabilityFrom(options: PageBodyOptions): { ok: true; availability?: 
 }
 
 /**
- * The host fields to send. The API resolves a host from what it is given and fills in the rest
- * from the caller's own calendars, so an update that changes one field carries the others over
- * from the page as it is. A different mailbox carries nothing: its calendars are other ones.
+ * The host fields that were passed. The API keeps what an update doesn't name and finds the mailbox
+ * a booking calendar belongs to, so nothing needs filling in here.
  */
-function hostFrom(options: PageBodyOptions, current: SchedulingPageHost | undefined): Record<string, unknown> | undefined {
-  const changes = options.mailbox !== undefined || options.bookInto !== undefined || options.busyCalendar?.length
-  if (!changes) return undefined
-
-  const sameMailbox = current && (options.mailbox === undefined || options.mailbox === current.mailbox_uuid)
-  const carried = sameMailbox ? current : undefined
+function hostFrom(options: PageBodyOptions): Record<string, unknown> | undefined {
   const host: Record<string, unknown> = {}
-  const mailbox = options.mailbox ?? carried?.mailbox_uuid
-  const bookInto = options.bookInto ?? carried?.booking_calendar_uuid
-  const busy = options.busyCalendar?.length ? options.busyCalendar : carried?.availability_calendar_uuids
-  if (mailbox) host.mailbox_uuid = mailbox
-  if (bookInto) host.booking_calendar_uuid = bookInto
-  if (busy?.length) host.availability_calendar_uuids = busy
-  return host
+  if (options.mailbox !== undefined) host.mailbox_uuid = options.mailbox
+  if (options.bookInto !== undefined) host.booking_calendar_uuid = options.bookInto
+  if (options.busyCalendar?.length) host.availability_calendar_uuids = options.busyCalendar
+  return Object.keys(host).length > 0 ? host : undefined
 }
 
 /**
  * The request body for a create or an update, or the usage error to print instead. An update sends
  * only what was passed; an empty --description or --location clears it.
  */
-export function buildPageBody(
-  options: PageBodyOptions,
-  { mode, currentHost }: { mode: 'create' | 'update'; currentHost?: SchedulingPageHost },
-): BuiltPageBody {
+export function buildPageBody(options: PageBodyOptions, { mode }: { mode: 'create' | 'update' }): BuiltPageBody {
   const body: PageBody = {}
 
   if (options.title !== undefined) {
@@ -215,11 +204,13 @@ export function buildPageBody(
   if (options.on) body.active = true
   if (options.off) body.active = false
 
+  if (options.hold !== undefined) body.hold_times = options.hold
+
   const availability = availabilityFrom(options)
   if (!availability.ok) return availability
   if (availability.availability) body.availability = availability.availability
 
-  const host = hostFrom(options, currentHost)
+  const host = hostFrom(options)
   if (host) body.hosts = [host]
 
   if (mode === 'create') {

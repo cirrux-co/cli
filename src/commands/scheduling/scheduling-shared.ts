@@ -34,6 +34,7 @@ export interface SchedulingPage {
   duration_minutes: number
   timezone: string
   active: boolean
+  hold_times: boolean
   minimum_notice_minutes: number
   booking_window_days: number
   availability: Availability

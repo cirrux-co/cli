@@ -1077,7 +1077,9 @@ const PAGE_WRITE_HELP =
   '  --hours takes days and times, and can be given more than once: "mon-fri 09:00-17:00",\n' +
   '  "mon,wed 09:00-12:00,13:00-17:00", "weekdays 10:00-16:00", "daily 09:00-12:00". A day never named\n' +
   '  is off. Hours are read in the page\'s --timezone. Instead of hours, a page can offer set windows\n' +
-  '  (--window <start>/<end>) or set start times (--slot <start>), each with a UTC offset.\n' +
+  '  (--window <start>/<end>) or set start times (--slot <start>), each with a UTC offset. --hold\n' +
+  '  blocks those windows or slots in the calendar it books into with "Hold" events while the page\n' +
+  '  keeps offering them, so nothing else lands there; the first booking removes them.\n' +
   '\nLengths (--duration, --notice) take minutes or a length: 30, 45m, 1h, 1h30m, 2d.\n'
 
 schedulingPages
@@ -1112,6 +1114,7 @@ schedulingPages
   .option('--notice <length>', 'How soon a booking may start, e.g. 4h (default 4h)')
   .option('--days-ahead <days>', 'How far ahead people can book (default 60)')
   .option('--off', 'Create it switched off, so its link takes no bookings yet')
+  .option('--hold', 'Block its --window or --slot times in the calendar until the first booking')
   .option('--mailbox <uuid>', 'Whose page it is: invitations come from this mailbox (default: yours)')
   .option('--book-into <calendar-uuid>', "Calendar bookings land in (default: the mailbox's default calendar)")
   .option('--busy-calendar <calendar-uuid...>', 'A calendar whose events block time, repeatable (default: all of the host\'s)')
@@ -1120,13 +1123,13 @@ schedulingPages
   .addHelpText(
     'after',
     PAGE_WRITE_HELP +
-      '\nCalendar UUIDs are the calendar_uuid values from `cirrux calendar list`. A calendar outside your\n' +
-      'default mailbox needs --mailbox too.\n' +
+      '\nCalendar UUIDs are the calendar_uuid values from `cirrux calendar list`. A page belongs to the\n' +
+      "mailbox of its --book-into calendar, so --mailbox is rarely needed.\n" +
       '\nExamples:\n' +
       '  $ cirrux scheduling pages create --title "Intro call" --duration 30\n' +
       '  $ cirrux scheduling pages create --title "Office hours" --duration 20m --slug office-hours \\\n' +
       '      --hours "tue,thu 14:00-17:00" --notice 1d --days-ahead 14\n' +
-      '  $ cirrux scheduling pages create --title "Launch demo" --duration 30 \\\n' +
+      '  $ cirrux scheduling pages create --title "Launch demo" --duration 30 --hold \\\n' +
       '      --slot 2026-12-03T10:00:00+01:00 --slot 2026-12-03T14:00:00+01:00 --slot 2026-12-04T09:30:00+01:00',
   )
   .action(schedulingPagesCreateCommand)
@@ -1148,6 +1151,8 @@ schedulingPages
   .option('--days-ahead <days>', 'How far ahead people can book')
   .option('--on', 'Switch it on: its link takes bookings')
   .option('--off', 'Switch it off: its link shows but takes no bookings')
+  .option('--hold', 'Block its windows or slots in the calendar until the first booking')
+  .option('--no-hold', 'Stop holding its times: the hold events are deleted')
   .option('--mailbox <uuid>', 'Move it to another mailbox you manage')
   .option('--book-into <calendar-uuid>', 'Calendar bookings land in')
   .option('--busy-calendar <calendar-uuid...>', 'Replace the calendars whose events block time, repeatable')

@@ -1,13 +1,6 @@
 import { expect, test } from 'bun:test'
 import { buildPageBody, parseDays, parseHours, parseMinutes } from './page-body.js'
 
-const HOST = {
-  user_uuid: 'user-1',
-  mailbox_uuid: 'mb-1',
-  booking_calendar_uuid: 'cal-1',
-  availability_calendar_uuids: ['cal-1', 'cal-2'],
-}
-
 test('days read as ranges, lists and words', () => {
   expect(parseDays('mon-fri')).toEqual(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])
   expect(parseDays('mon,wed,fri')).toEqual(['monday', 'wednesday', 'friday'])
@@ -110,31 +103,25 @@ test('update sends only what changes, and an empty description or location clear
   })
   expect(buildPageBody({}, { mode: 'update' })).toMatchObject({ ok: false, message: 'Nothing to change.' })
   expect(buildPageBody({ on: true, off: true }, { mode: 'update' })).toMatchObject({ ok: false })
+  expect(buildPageBody({ hold: true }, { mode: 'update' })).toEqual({ ok: true, body: { hold_times: true } })
+  expect(buildPageBody({ hold: false }, { mode: 'update' })).toEqual({ ok: true, body: { hold_times: false } })
   expect(buildPageBody({ title: '  ' }, { mode: 'update' })).toMatchObject({ ok: false })
 })
 
-// The API fills a host field that isn't given from the caller's own calendars, so changing one
-// field must carry the others, or moving where bookings land would also reset what counts as busy.
-test('a host change carries the rest of the host over', () => {
-  expect(buildPageBody({ bookInto: 'cal-3' }, { mode: 'update', currentHost: HOST })).toEqual({
+// The API keeps what an update doesn't name, so only the host fields passed are sent.
+test('host flags send only what was passed', () => {
+  expect(buildPageBody({ bookInto: 'cal-3' }, { mode: 'update' })).toEqual({
     ok: true,
-    body: { hosts: [{ mailbox_uuid: 'mb-1', booking_calendar_uuid: 'cal-3', availability_calendar_uuids: ['cal-1', 'cal-2'] }] },
+    body: { hosts: [{ booking_calendar_uuid: 'cal-3' }] },
   })
-  expect(buildPageBody({ busyCalendar: ['cal-9'] }, { mode: 'update', currentHost: HOST })).toEqual({
+  expect(buildPageBody({ mailbox: 'mb-2', busyCalendar: ['cal-8', 'cal-9'] }, { mode: 'update' })).toEqual({
     ok: true,
-    body: { hosts: [{ mailbox_uuid: 'mb-1', booking_calendar_uuid: 'cal-1', availability_calendar_uuids: ['cal-9'] }] },
-  })
-})
-
-test('moving to another mailbox carries nothing: its calendars are other ones', () => {
-  expect(buildPageBody({ mailbox: 'mb-2' }, { mode: 'update', currentHost: HOST })).toEqual({
-    ok: true,
-    body: { hosts: [{ mailbox_uuid: 'mb-2' }] },
+    body: { hosts: [{ mailbox_uuid: 'mb-2', availability_calendar_uuids: ['cal-8', 'cal-9'] }] },
   })
 })
 
 test('without host flags no host is sent', () => {
-  expect(buildPageBody({ title: 'Chat' }, { mode: 'update', currentHost: HOST })).toEqual({ ok: true, body: { title: 'Chat' } })
+  expect(buildPageBody({ title: 'Chat' }, { mode: 'update' })).toEqual({ ok: true, body: { title: 'Chat' } })
 })
 
 // The help's "three set slots" example.

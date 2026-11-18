@@ -259,6 +259,8 @@ cirrux scheduling pages create --title "Intro call" --duration 30
 cirrux scheduling pages create --title "Office hours" --duration 20m --hours "tue,thu 14:00-17:00" --notice 1d
 cirrux scheduling pages create --title "Launch demo" --duration 30 \
   --slot 2026-12-03T10:00:00+01:00 --slot 2026-12-03T14:00:00+01:00 --slot 2026-12-04T09:30:00+01:00
+cirrux scheduling pages create --title "Contract review" --duration 1h --hold \
+  --slot 2026-12-03T10:00:00+01:00 --slot 2026-12-04T14:00:00+01:00   # blocked in your calendar until one is booked
 cirrux scheduling pages update <page-uuid> --hours "mon-fri 09:00-12:00"
 cirrux scheduling pages update <page-uuid> --off
 cirrux scheduling pages slots <page-uuid>                          # the times its link offers now

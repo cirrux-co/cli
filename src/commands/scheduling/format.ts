@@ -7,6 +7,7 @@ import {
   type Weekday,
   WEEKDAYS,
 } from './scheduling-shared.js'
+import type { Calendar } from '../calendar/calendar-shared.js'
 
 const SHORT: Record<Weekday, string> = {
   monday: 'mon',
@@ -86,12 +87,43 @@ export function formatPageList(response: SchedulingPageListResponse): { text: st
   }
 }
 
-/** One line, for the result of a create or an update. */
-export function formatWrittenPage(page: SchedulingPage): string {
-  return [page.uuid, page.active ? 'on' : 'off', formatLength(page.duration_minutes), page.title, page.url].join('\t')
+/**
+ * What the uuids on a page's host stand for, from the caller's calendar list: the mailbox's
+ * address, and each calendar's name with the address of the mailbox it is in.
+ */
+export interface HostNames {
+  mailboxes: Map<string, string>
+  calendars: Map<string, string>
 }
 
-export function formatPage(page: SchedulingPage): string {
+export function hostNamesFrom(calendars: Calendar[]): HostNames {
+  const mailboxes = new Map<string, string>()
+  const named = new Map<string, string>()
+  for (const calendar of calendars) {
+    if (calendar.mailbox_address) mailboxes.set(calendar.mailbox_uuid, calendar.mailbox_address)
+    if (named.has(calendar.calendar_uuid)) continue
+    named.set(
+      calendar.calendar_uuid,
+      calendar.mailbox_address ? `${calendar.name} (${calendar.mailbox_address})` : calendar.name,
+    )
+  }
+  return { mailboxes, calendars: named }
+}
+
+/** One line, for the result of a create or an update, ending with whose page it is. */
+export function formatWrittenPage(page: SchedulingPage, names?: HostNames): string {
+  const host = page.hosts[0]
+  return [
+    page.uuid,
+    page.active ? 'on' : 'off',
+    formatLength(page.duration_minutes),
+    page.title,
+    page.url,
+    ...(host ? [names?.mailboxes.get(host.mailbox_uuid) ?? host.mailbox_uuid] : []),
+  ].join('\t')
+}
+
+export function formatPage(page: SchedulingPage, names?: HostNames): string {
   const host = page.hosts[0]
   const label = (name: string) => name.padEnd(12)
   const [firstTime = '', ...moreTimes] = formatAvailability(page.availability)
@@ -105,14 +137,18 @@ export function formatPage(page: SchedulingPage): string {
     `${label('time zone')}${page.timezone}`,
     `${label(page.availability.type === 'recurring' ? 'hours' : page.availability.type)}${firstTime}`,
     ...moreTimes.map((line) => `${label('')}${line}`),
+    ...(page.hold_times ? [`${label('held')}in the calendar until the first booking`] : []),
     `${label('notice')}${formatLength(page.minimum_notice_minutes)}`,
     `${label('days ahead')}${page.booking_window_days}`,
   ]
   if (host) {
+    const calendar = (uuid: string) => names?.calendars.get(uuid) ?? uuid
+    const [firstBusy = '', ...moreBusy] = host.availability_calendar_uuids.map(calendar)
     lines.push(
-      `${label('mailbox')}${host.mailbox_uuid}`,
-      `${label('books into')}${host.booking_calendar_uuid}`,
-      `${label('busy from')}${host.availability_calendar_uuids.join(', ')}`,
+      `${label('mailbox')}${names?.mailboxes.get(host.mailbox_uuid) ?? host.mailbox_uuid}`,
+      `${label('books into')}${calendar(host.booking_calendar_uuid)}`,
+      `${label('busy from')}${firstBusy}`,
+      ...moreBusy.map((line) => `${label('')}${line}`),
     )
   }
   if (page.description) lines.push('', page.description)

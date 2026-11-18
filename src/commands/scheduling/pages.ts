@@ -2,7 +2,8 @@ import { authedRequest, authedRequestVoid } from '../../api.js'
 import { confirmDeleteOrExit } from '../../confirm.js'
 import { ExitCode } from '../../exit-codes.js'
 import { deferred, output, outputError, type OutputOptions } from '../../output.js'
-import { formatPage, formatPageList, formatSlots, formatWrittenPage } from './format.js'
+import type { CalendarListResponse } from '../calendar/calendar-shared.js'
+import { formatPage, formatPageList, formatSlots, formatWrittenPage, hostNamesFrom, type HostNames } from './format.js'
 import { buildPageBody, type PageBodyOptions } from './page-body.js'
 import {
   handleSchedulingError,
@@ -16,6 +17,19 @@ const PAGES = 'public_api/v1/scheduling_pages'
 
 function pagePath(uuid: string): string {
   return `${PAGES}/${encodeURIComponent(uuid)}`
+}
+
+/**
+ * The text output names the host's mailbox and calendars rather than printing their uuids, so a
+ * page that went to an unexpected mailbox shows. Best effort: without the list, the uuids.
+ */
+async function hostNames(options: OutputOptions): Promise<HostNames | undefined> {
+  if (options.json || options.quiet) return undefined
+  try {
+    return hostNamesFrom((await authedRequest<CalendarListResponse>('public_api/v1/calendars')).data)
+  } catch {
+    return undefined
+  }
 }
 
 function notFound(uuid: string): string {
@@ -42,10 +56,11 @@ export async function schedulingPagesGetCommand(uuid: string, options: OutputOpt
 
   try {
     const page = await authedRequest<SchedulingPage>(pagePath(uuid))
+    const names = await hostNames(options)
 
     output(page as unknown as Record<string, unknown>, {
       ...options,
-      text: () => formatPage(page),
+      text: () => formatPage(page, names),
       quietValue: () => page.url,
     })
   } catch (error) {
@@ -71,10 +86,11 @@ export async function schedulingPagesCreateCommand(options: PageBodyOptions & Ou
 
   try {
     const page = await authedRequest<SchedulingPage>(PAGES, { method: 'POST', body })
+    const names = await hostNames(options)
 
     output(page as unknown as Record<string, unknown>, {
       ...options,
-      text: () => `Created ${formatWrittenPage(page)}`,
+      text: () => `Created ${formatWrittenPage(page, names)}`,
       quietValue: () => page.uuid,
     })
   } catch (error) {
@@ -88,16 +104,15 @@ export async function schedulingPagesUpdateCommand(
 ): Promise<void> {
   requireCredentials(options)
 
+  const body = bodyOrExit(options, buildPageBody(options, { mode: 'update' }))
+
   try {
-    // A host change carries the rest of the host over from the page as it is, so read it first.
-    const changesHost = options.mailbox !== undefined || options.bookInto !== undefined || !!options.busyCalendar?.length
-    const current = changesHost ? await authedRequest<SchedulingPage>(pagePath(uuid)) : undefined
-    const body = bodyOrExit(options, buildPageBody(options, { mode: 'update', currentHost: current?.hosts[0] }))
     const page = await authedRequest<SchedulingPage>(pagePath(uuid), { method: 'POST', body })
+    const names = await hostNames(options)
 
     output(page as unknown as Record<string, unknown>, {
       ...options,
-      text: () => `Updated ${formatWrittenPage(page)}`,
+      text: () => `Updated ${formatWrittenPage(page, names)}`,
       quietValue: () => page.uuid,
     })
   } catch (error) {
